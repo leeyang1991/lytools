@@ -1,0 +1,10 @@
+matplotlib
+numpy
+scipy
+gdal
+tqdm
+pandas
+seaborn
+sklearn
+requests
+xarray
