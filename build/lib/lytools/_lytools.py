@@ -1,5 +1,6 @@
 # coding=utf-8
 import sys
+
 version = sys.version_info.major
 assert version == 3, 'Python Version Error'
 
@@ -59,96 +60,96 @@ class Tools:
             else:
                 os.mkdir(dir)
 
-    def load_npy_dir(self,fdir,condition=''):
+    def load_npy_dir(self, fdir, condition=''):
         dic = {}
-        for f in tqdm(Tools().listdir(fdir),desc='loading '+fdir):
+        for f in tqdm(Tools().listdir(fdir), desc='loading ' + fdir):
             if not condition in f:
                 continue
-            dic_i = self.load_npy(os.path.join(fdir,f))
+            dic_i = self.load_npy(os.path.join(fdir, f))
             dic.update(dic_i)
         return dic
         pass
 
-
-    def load_dict_txt(self,f):
+    def load_dict_txt(self, f):
         nan = np.nan
-        dic = eval(open(f,'r').read())
+        dic = eval(open(f, 'r').read())
         return dic
 
-    def save_dict_to_txt(self,results_dic,outf):
+    def save_dict_to_txt(self, results_dic, outf):
         fw = outf + '.txt'
         fw = open(fw, 'w')
         fw.write(str(results_dic))
         pass
 
-    def save_dict_to_binary(self,dic,outf):
+    def save_dict_to_binary(self, dic, outf):
         if outf.endswith('pkl'):
-            fw = open(outf,'wb')
-            pickle.dump(dic,fw)
+            fw = open(outf, 'wb')
+            pickle.dump(dic, fw)
             fw.close()
         else:
             fw = open(outf + '.pkl', 'wb')
             pickle.dump(dic, fw)
             fw.close()
 
-    def save_npy(self,dic,outf):
+    def save_npy(self, dic, outf):
         np.save(outf, dic)
 
-    def load_dict_from_binary(self,f):
-        fr = open(f,'rb')
+    def load_dict_from_binary(self, f):
+        fr = open(f, 'rb')
         try:
             dic = pickle.load(fr)
         except:
-            dic = pickle.load(fr,encoding="latin1")
+            dic = pickle.load(fr, encoding="latin1")
 
         return dic
         pass
 
-    def load_npy(self,f):
+    def load_npy(self, f):
         try:
-            return dict(np.load(f,allow_pickle=True).item())
+            return dict(np.load(f, allow_pickle=True).item())
         except Exception as e:
-            return dict(np.load(f,allow_pickle=True,encoding='latin1').item())
+            return dict(np.load(f, allow_pickle=True, encoding='latin1').item())
         except:
             return dict(np.load(f).item())
 
-
-    def load_df(self,f):
+    def load_df(self, f):
         df = pd.read_pickle(f)
         df = pd.DataFrame(df)
         return df
         pass
 
-    def save_df(self,df,outf):
+    def save_df(self, df, outf):
         df.to_pickle(outf)
 
+    def df_to_excel(self, df, dff, head=1000):
+        if head == None:
+            df.to_excel('{}.xlsx'.format(dff))
+        else:
+            df = df.head(head)
+            df.to_excel('{}.xlsx'.format(dff))
 
-    def mask_999999_arr(self,arr):
-        arr[arr<-9999]=np.nan
+    def mask_999999_arr(self, arr):
+        arr[arr < -9999] = np.nan
 
-    def lonlat_to_address(self,lon, lat):
+    def lonlat_to_address(self, lon, lat):
         ak = "mziulWyNDGkBdDnFxWDTvELlMSun8Obt"  # 参照自己的应用
         url = 'http://api.map.baidu.com/reverse_geocoding/v3/?ak=mziulWyNDGkBdDnFxWDTvELlMSun8Obt&output=json&coordtype=wgs84ll&location=%s,%s' % (
-        lat, lon)
+            lat, lon)
         content = requests.get(url).text
         dic = eval(content)
         # for key in dic['result']:
         add = dic['result']['formatted_address']
         return add
 
-
-    def spatial_arr_filter_n_sigma(self,spatial_arr,n=3):
+    def spatial_arr_filter_n_sigma(self, spatial_arr, n=3):
         arr_std = np.nanstd(spatial_arr)
         arr_mean = np.nanmean(spatial_arr)
-        top = arr_mean + n*arr_std
-        bottom = arr_mean - n*arr_std
-        spatial_arr[spatial_arr>top] = np.nan
-        spatial_arr[spatial_arr<bottom] = np.nan
+        top = arr_mean + n * arr_std
+        bottom = arr_mean - n * arr_std
+        spatial_arr[spatial_arr > top] = np.nan
+        spatial_arr[spatial_arr < bottom] = np.nan
 
-
-
-
-    def pix_to_address(self, pix,outf,pix_to_lon_lat_dic_f):
+    def pix_to_address(self, pix, outf, pix_to_lon_lat_dic_f):
         # 只适用于单个像素查看，不可大量for循环pix，存在磁盘重复读写现象
         # outf = self.this_class_arr + 'pix_to_address_history.npy'
         if not os.path.isfile(outf):
@@ -174,8 +175,7 @@ class Tools:
             np.save(outf, history_dic)
             return lon, lat, address
 
-
-    def interp_1d(self, val,threashold):
+    def interp_1d(self, val, threashold):
         if len(val) == 0 or np.std(val) == 0:
             return [None]
 
@@ -225,7 +225,7 @@ class Tools:
 
         return yiii
 
-    def interp_1d_1(self, val,threshold):
+    def interp_1d_1(self, val, threshold):
         # 不插离群值 只插缺失值
         if len(val) == 0 or np.std(val) == 0:
             return [None]
@@ -247,12 +247,9 @@ class Tools:
         xi = list(range(len(val)))
         yi = interp(xi)
 
-
         return yi
 
-
-
-    def interp_nan(self,val,kind='nearest',valid_percent=0.1):
+    def interp_nan(self, val, kind='nearest', valid_percent=0.1):
         if len(val) == 0 or np.std(val) == 0:
             return [None]
 
@@ -274,11 +271,9 @@ class Tools:
         xi = list(range(len(val)))
         yi = interp(xi)
 
-
         return yi
 
         pass
-
 
     def detrend_dic(self, dic):
         dic_new = {}
@@ -302,7 +297,7 @@ class Tools:
         arr_mean = np.mean(arr[np.logical_not(grid)])
         return arr_mean
 
-    def arr_mean_nan(self,arr):
+    def arr_mean_nan(self, arr):
 
         flag = 0.
         sum_ = 0.
@@ -314,9 +309,9 @@ class Tools:
             flag += 1
             x.append(i)
         if flag == 0:
-            return np.nan,np.nan
+            return np.nan, np.nan
         else:
-            mean = sum_/flag
+            mean = sum_ / flag
             # xerr = mean/np.std(x,ddof=1)
             xerr = np.std(x)
             # print mean,xerr
@@ -327,9 +322,9 @@ class Tools:
             #     plt.hist(x,bins=10)
             #     plt.show()
             #     exit()
-            return mean,xerr
+            return mean, xerr
 
-    def pick_vals_from_2darray(self, array, index,pick_nan=False):
+    def pick_vals_from_2darray(self, array, index, pick_nan=False):
         # 2d
         ################# check zone #################
         # plt.imshow(array)
@@ -393,7 +388,6 @@ class Tools:
                 max_index = i
         return max_index
 
-
     def point_to_shp(self, inputlist, outSHPfn):
         '''
 
@@ -441,13 +435,14 @@ class Tools:
     def show_df_all_columns(self):
         pd.set_option('display.max_columns', None)
         pass
-    def print_head_n(self,df,n=10,pause_flag=0):
+
+    def print_head_n(self, df, n=10, pause_flag=0):
         self.show_df_all_columns()
         print(df.head(n))
         if pause_flag == 1:
             pause()
 
-    def remove_np_nan(self,arr,is_relplace=False):
+    def remove_np_nan(self, arr, is_relplace=False):
         if is_relplace:
             arr = arr[~np.isnan(arr)]
         else:
@@ -456,11 +451,11 @@ class Tools:
             return arr_cp
         pass
 
-    def plot_colors_palette(self,cmap):
+    def plot_colors_palette(self, cmap):
         plt.figure()
         sns.palplot(cmap)
 
-    def group_consecutive_vals(self,in_list):
+    def group_consecutive_vals(self, in_list):
         # 连续值分组
         ranges = []
         for _, group in groupby(enumerate(in_list), lambda index_item: index_item[0] - index_item[1]):
@@ -471,7 +466,7 @@ class Tools:
                 ranges.append([group[0]])
         return ranges
 
-    def listdir(self,fdir):
+    def listdir(self, fdir):
         '''
         Mac OS
         list the names of the files in the directory
@@ -486,7 +481,7 @@ class Tools:
 
         pass
 
-    def drop_repeat_val_from_list(self,in_list):
+    def drop_repeat_val_from_list(self, in_list):
         in_list = list(in_list)
         in_list = set(in_list)
         in_list = list(in_list)
@@ -494,8 +489,7 @@ class Tools:
 
         return in_list
 
-
-    def nan_correlation(self,val1_list,val2_list):
+    def nan_correlation(self, val1_list, val2_list):
         # pearson correlation of val1 and val2, which contain Nan
 
         val1_list_new = []
@@ -510,13 +504,13 @@ class Tools:
             val1_list_new.append(val1)
             val2_list_new.append(val2)
         if len(val1_list_new) <= 3:
-            r,p = np.nan,np.nan
+            r, p = np.nan, np.nan
         else:
-            r,p = stats.pearsonr(val1_list_new,val2_list_new)
+            r, p = stats.pearsonr(val1_list_new, val2_list_new)
 
-        return r,p
+        return r, p
 
-    def count_num(self,arr,elements):
+    def count_num(self, arr, elements):
         arr = np.array(arr)
         unique, counts = np.unique(arr, return_counts=True)
         count_dic = dict(zip(unique, counts))
@@ -526,11 +520,10 @@ class Tools:
             num = count_dic[elements]
         return num
 
-
-    def open_path_and_file(self,fpath):
+    def open_path_and_file(self, fpath):
         os.system('open {}'.format(fpath))
 
-    def slide_window_correlation(self,x,y,window=15):
+    def slide_window_correlation(self, x, y, window=15):
         time_series = []
         r_list = []
         for i in range(len(x)):
@@ -548,11 +541,12 @@ class Tools:
             r_list.append(r)
             time_series.append(i)
         time_series = np.array(time_series)
-        time_series = time_series + int(window/2)
-        time_series = np.array(time_series,dtype=int)
+        time_series = time_series + int(window / 2)
+        time_series = np.array(time_series, dtype=int)
         r_list = np.array(r_list)
 
-        return time_series,r_list
+        return time_series, r_list
+
 
 class SMOOTH:
     '''
@@ -688,20 +682,19 @@ class SMOOTH:
             temp = 0
         return np.array(new_x)
 
-
-    def smooth_interpolate(self,inx,iny,zoom):
+    def smooth_interpolate(self, inx, iny, zoom):
         '''
         1d平滑差值
         :param inlist:
         :return:
         '''
 
-        x_new = np.arange(min(inx),max(inx),((max(inx)-min(inx))/float(len(inx)))/float(zoom))
-        func = interpolate.interp1d(inx,iny,kind='cubic')
+        x_new = np.arange(min(inx), max(inx), ((max(inx) - min(inx)) / float(len(inx))) / float(zoom))
+        func = interpolate.interp1d(inx, iny, kind='cubic')
         y_new = func(x_new)
-        return x_new,y_new
+        return x_new, y_new
 
-    def mid_window_smooth(self,x,window=3):
+    def mid_window_smooth(self, x, window=3):
         # 中滑动窗口滤波
         # 窗口为奇数
 
@@ -728,8 +721,8 @@ class SMOOTH:
                 left = 0
             if right >= len(x):
                 right = len(x)
-            picked_indx = list(range(int(left),int(right)))
-            picked_value = Tools().pick_vals_from_1darray(x,picked_indx)
+            picked_indx = list(range(int(left), int(right)))
+            picked_value = Tools().pick_vals_from_1darray(x, picked_indx)
             picked_value_mean = np.nanmean(picked_value)
             new_x.append(picked_value_mean)
 
@@ -788,16 +781,15 @@ class SMOOTH:
 
         pass
 
-
-    def hist_plot_smooth(self,arr,interpolate_window=5,**kwargs):
+    def hist_plot_smooth(self, arr, interpolate_window=5, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
-        n1, x1, patch = plt.hist(arr,weights=weights,**kwargs)
+        n1, x1, patch = plt.hist(arr, weights=weights, **kwargs)
         density1 = stats.gaussian_kde(arr)
         y1 = density1(x1)
         coe = max(n1) / max(y1)
         y1 = y1 * coe
         x1, y1 = self.smooth_interpolate(x1, y1, interpolate_window)
-        return x1,y1
+        return x1, y1
 
         pass
 
@@ -808,10 +800,9 @@ class DIC_and_TIF:
     tif转字典
     '''
 
-    def __init__(self,tif_template=None):
+    def __init__(self, tif_template=None):
         self.tif_template = tif_template
         pass
-
 
     def arr_to_tif(self, array, newRasterfn):
         # template
@@ -833,18 +824,16 @@ class DIC_and_TIF:
         ToRaster().array2raster_GDT_Byte(newRasterfn, originX, originY, pixelWidth, pixelHeight, array)
         pass
 
-
-    def spatial_arr_to_dic(self,arr):
+    def spatial_arr_to_dic(self, arr):
 
         pix_dic = {}
         for i in range(len(arr)):
             for j in range(len(arr[0])):
-                pix = (i,j)
+                pix = (i, j)
                 val = arr[i][j]
                 pix_dic[pix] = val
 
         return pix_dic
-
 
     def pix_dic_to_spatial_arr(self, spatial_dic):
 
@@ -878,13 +867,13 @@ class DIC_and_TIF:
         #         if 00<v<1.5:
         #             hist.append(v)
 
-        spatial = np.array(spatial,dtype=float)
+        spatial = np.array(spatial, dtype=float)
         return spatial
 
     def pix_dic_to_spatial_arr_mean(self, spatial_dic):
 
         mean_spatial_dic = {}
-        for pix in tqdm(spatial_dic,desc='calculating spatial mean'):
+        for pix in tqdm(spatial_dic, desc='calculating spatial mean'):
             vals = spatial_dic[pix]
             if len(vals) == 0:
                 mean = np.nan
@@ -893,9 +882,8 @@ class DIC_and_TIF:
             mean_spatial_dic[pix] = mean
 
         spatial = self.pix_dic_to_spatial_arr(mean_spatial_dic)
-        spatial = np.array(spatial,dtype=float)
+        spatial = np.array(spatial, dtype=float)
         return spatial
-
 
     def pix_dic_to_spatial_arr_ascii(self, spatial_dic):
         # dtype can be in ascii format
@@ -926,16 +914,13 @@ class DIC_and_TIF:
         spatial = np.array(spatial)
         return spatial
 
-
     def pix_dic_to_tif(self, spatial_dic, out_tif):
 
         spatial = self.pix_dic_to_spatial_arr(spatial_dic)
         # spatial = np.array(spatial)
         self.arr_to_tif(spatial, out_tif)
 
-
-
-    def pix_dic_to_shp(self,spatial_dic,outf):
+    def pix_dic_to_shp(self, spatial_dic, outf):
         pix_to_lon_lat_dic = DIC_and_TIF().spatial_tif_to_lon_lat_dic()
         inlist = []
         for pix in spatial_dic:
@@ -948,7 +933,7 @@ class DIC_and_TIF:
 
         pass
 
-    def spatial_tif_to_lon_lat_dic(self,outf):
+    def spatial_tif_to_lon_lat_dic(self, outf):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         if os.path.isfile(outf):
             print(f'loading {outf}')
@@ -961,7 +946,7 @@ class DIC_and_TIF:
             # print(originX, originY, pixelWidth, pixelHeight)
             # exit()
             pix_to_lon_lat_dic = {}
-            for i in tqdm(list(range(len(arr))),desc='tif_to_lon_lat_dic'):
+            for i in tqdm(list(range(len(arr))), desc='tif_to_lon_lat_dic'):
                 for j in range(len(arr[0])):
                     pix = (i, j)
                     lon = originX + pixelWidth * j
@@ -972,11 +957,10 @@ class DIC_and_TIF:
             np.save(outf, pix_to_lon_lat_dic)
             return pix_to_lon_lat_dic
 
-
-    def spatial_tif_to_dic(self,tif):
+    def spatial_tif_to_dic(self, tif):
 
         arr = ToRaster().raster2array(tif)[0]
-        arr = np.array(arr,dtype=float)
+        arr = np.array(arr, dtype=float)
         Tools().mask_999999_arr(arr)
         dic = self.spatial_arr_to_dic(arr)
         return dic
@@ -992,7 +976,6 @@ class DIC_and_TIF:
                 key = (row, col)
                 void_dic[key] = []
         return void_dic
-
 
     def void_spatial_dic_nan(self):
         tif_template = self.tif_template
@@ -1038,7 +1021,7 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4,zorder=-1)
+        plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1)
 
         # return back_ground
 
@@ -1058,12 +1041,11 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground[:180], 'gray', vmin=0, vmax=1.4,zorder=-1)
+        plt.imshow(back_ground[:180], 'gray', vmin=0, vmax=1.4, zorder=-1)
 
         # return back_ground
 
         pass
-
 
     def mask_ocean_dic(self):
         tif_template = self.tif_template
@@ -1075,10 +1057,10 @@ class DIC_and_TIF:
                 if val < -99999:
                     continue
                 else:
-                    ocean_dic[(i,j)]=1
+                    ocean_dic[(i, j)] = 1
         return ocean_dic
 
-    def show_pix(self,pix,window_pix=20):
+    def show_pix(self, pix, window_pix=20):
         dic_temp = {}
         c, r = pix
         for ci in range(c - window_pix, c + window_pix):
@@ -1088,11 +1070,10 @@ class DIC_and_TIF:
         arr = DIC_and_TIF().pix_dic_to_spatial_arr(dic_temp)
         # plt.figure()
         DIC_and_TIF().plot_back_ground_arr()
-        plt.imshow(arr, cmap='gray',vmin=0,vmax=100,zorder=99)
+        plt.imshow(arr, cmap='gray', vmin=0, vmax=100, zorder=99)
         plt.title(str(pix))
 
-
-    def china_pix(self,pix):
+    def china_pix(self, pix):
         r, c = pix
         china_r = list(range(75, 150))
         china_c = list(range(550, 620))
@@ -1104,7 +1085,7 @@ class DIC_and_TIF:
         else:
             return False
 
-    def per_pix_animate(self,per_pix_dir,interval_t=10,condition=''):
+    def per_pix_animate(self, per_pix_dir, interval_t=10, condition=''):
 
         import matplotlib.animation as animation
 
@@ -1142,8 +1123,7 @@ class DIC_and_TIF:
             return background_arr
 
         fdir = per_pix_dir
-        dic = Tools().load_npy_dir(fdir,condition=condition)
-
+        dic = Tools().load_npy_dir(fdir, condition=condition)
 
         # selected_pix_sort = []
         # for pix in tqdm(dic):
@@ -1161,11 +1141,11 @@ class DIC_and_TIF:
             val = np.array(val)
             if len(val) == 0:
                 continue
-            val[val<-9999] = np.nan
+            val[val < -9999] = np.nan
             china_pix_val[flag] = val
             vmin_init = np.nanmin(val)
             vmax_init = np.nanmax(val)
-            min_max_v.append((vmin_init,vmax_init))
+            min_max_v.append((vmin_init, vmax_init))
             china_pix.append(pix)
             flag += 1
         min_max_set_dic = {}
@@ -1177,7 +1157,7 @@ class DIC_and_TIF:
             vmax_list.append(min_max_v[i][1])
             vmin_set = np.min(vmin_list)
             vmax_set = np.max(vmax_list)
-            min_max_set_dic[i] = (vmin_set,vmax_set)
+            min_max_set_dic[i] = (vmin_set, vmax_set)
         # exit()
         fig = plt.figure()
         ax2 = fig.add_subplot(212)
@@ -1200,18 +1180,16 @@ class DIC_and_TIF:
             val_in[val_in < -999] = 0
             line.set_ydata(val_in)
             ax1.set_title(china_pix[i])
-            vmin_,vmax_ = min_max_set_dic[i]
+            vmin_, vmax_ = min_max_set_dic[i]
             # if vmin == None:
             #     vmin = vmin_
             # if vmax == None:
             #     vmax = vmax_
             if not np.isnan(vmin_) and not np.isnan(vmax_):
-                ax1.set_ylim(vmin_,vmax_)
+                ax1.set_ylim(vmin_, vmax_)
             im_arr_in = show_pix(china_pix[i], back_ground_copy)
             im.set_array(im_arr_in)
             return line,
-
-
 
         ani = animation.FuncAnimation(
             fig, animate, init_func=init, interval=interval_t, blit=False, frames=len(china_pix))
@@ -1219,7 +1197,8 @@ class DIC_and_TIF:
         plt.show()
 
         pass
-    def lon_lat_val_to_tif(self,lon_list,lat_list,val_list,outtif):
+
+    def lon_lat_val_to_tif(self, lon_list, lat_list, val_list, outtif):
         lonlist_set = list(set(lon_list))
         latlist_set = list(set(lat_list))
         lonlist_set.sort()
@@ -1255,8 +1234,7 @@ class DIC_and_TIF:
         latitude_start = originY
         ToRaster().array2raster(outtif, longitude_start, latitude_start, pixelWidth, pixelHeight, spatial)
 
-
-    def lon_lat_ascii_to_arr(self,lon_list,lat_list,val_list):
+    def lon_lat_ascii_to_arr(self, lon_list, lat_list, val_list):
         lonlist_set = list(set(lon_list))
         latlist_set = list(set(lat_list))
         lonlist_set.sort()
@@ -1288,10 +1266,9 @@ class DIC_and_TIF:
                     temp.append(None)
             spatial.append(temp)
         spatial = np.array(spatial)
-        array,longitude_start,latitude_start,pixelWidth,pixelHeight = \
-            spatial,originX,originY,pixelWidth,pixelHeight
-        return array,longitude_start,latitude_start,pixelWidth,pixelHeight
-
+        array, longitude_start, latitude_start, pixelWidth, pixelHeight = \
+            spatial, originX, originY, pixelWidth, pixelHeight
+        return array, longitude_start, latitude_start, pixelWidth, pixelHeight
 
     def unify_raster(self, in_tif, out_tif, ndv=-999999.):
         '''
@@ -1349,12 +1326,11 @@ class DIC_and_TIF:
         newRasterfn = out_tif
         ToRaster().array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
-
-    def resample_reproj(self,in_tif,out_tif,res,srcSRS='EPSG:4326',dstSRS='EPSG:4326'):
+    def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
-    def gen_srs_from_wkt(self,proj_wkt):
+    def gen_srs_from_wkt(self, proj_wkt):
         '''
         proj_wkt example:
         prj_info = PROJCS["Homolosine",
@@ -1374,6 +1350,7 @@ class DIC_and_TIF:
         inRasterSRS = osr.SpatialReference()
         inRasterSRS.ImportFromWkt(proj_wkt)
         return inRasterSRS
+
 
 class MULTIPROCESS:
     '''
@@ -1486,7 +1463,7 @@ class KDE_plot:
             colors.append(cmap(i))
         return colors
 
-    def linefit(self,x, y):
+    def linefit(self, x, y):
         '''
         最小二乘法拟合直线
         :param x:
@@ -1494,20 +1471,19 @@ class KDE_plot:
         :return:
         '''
         N = float(len(x))
-        sx,sy,sxx,syy,sxy=0,0,0,0,0
-        for i in range(0,int(N)):
-            sx  += x[i]
-            sy  += y[i]
-            sxx += x[i]*x[i]
-            syy += y[i]*y[i]
-            sxy += x[i]*y[i]
-        a = (sy*sx/N -sxy)/( sx*sx/N -sxx)
-        b = (sy - a*sx)/N
-        r = -(sy*sx/N-sxy)/math.sqrt((sxx-sx*sx/N)*(syy-sy*sy/N))
-        return a,b,r
+        sx, sy, sxx, syy, sxy = 0, 0, 0, 0, 0
+        for i in range(0, int(N)):
+            sx += x[i]
+            sy += y[i]
+            sxx += x[i] * x[i]
+            syy += y[i] * y[i]
+            sxy += x[i] * y[i]
+        a = (sy * sx / N - sxy) / (sx * sx / N - sxx)
+        b = (sy - a * sx) / N
+        r = -(sy * sx / N - sxy) / math.sqrt((sxx - sx * sx / N) * (syy - sy * sy / N))
+        return a, b, r
 
-
-    def plot_fit_line(self,a,b,r,X,ax=None,title='',is_label=True,is_formula=True,line_color='k',**argvs):
+    def plot_fit_line(self, a, b, r, X, ax=None, title='', is_label=True, is_formula=True, line_color='k', **argvs):
         '''
         画拟合直线 y=ax+b
         画散点图 X,Y
@@ -1519,8 +1495,8 @@ class KDE_plot:
         :param title:
         :return:
         '''
-        x = np.linspace(min(X),max(X),10)
-        y = a*x + b
+        x = np.linspace(min(X), max(X), 10)
+        y = a * x + b
         #
         # plt.subplot(2,2,i)
         # plt.scatter(X,Y,marker='o',s=5,c = 'grey')
@@ -1528,7 +1504,7 @@ class KDE_plot:
         c = line_color
         if is_label == True:
             if is_formula == True:
-                label='y={:0.2f}x+{:0.2f}\nr={:0.2f}'.format(a,b,r)
+                label = 'y={:0.2f}x+{:0.2f}\nr={:0.2f}'.format(a, b, r)
             else:
                 label = 'r={:0.2f}'.format(r)
         else:
@@ -1536,15 +1512,14 @@ class KDE_plot:
 
         if ax == None:
             if not 'linewidth' in argvs:
-                plt.plot(x, y, linestyle='dashed', c=c, linewidth=1, alpha=0.7,label=label, **argvs)
+                plt.plot(x, y, linestyle='dashed', c=c, alpha=0.7, label=label, **argvs)
             else:
-                plt.plot(x,y,linestyle='dashed',c=c,alpha=0.7,label=label,**argvs)
+                plt.plot(x, y, linestyle='dashed', c=c, alpha=0.7, label=label, **argvs)
         else:
             if not 'linewidth' in argvs:
-                ax.plot(x, y, linestyle='dashed', c=c, linewidth=1, alpha=0.7,label=label, **argvs)
+                ax.plot(x, y, linestyle='dashed', c=c, alpha=0.7, label=label, **argvs)
             else:
-                ax.plot(x,y,linestyle='dashed',c=c,alpha=0.7,label=label,**argvs)
-
+                ax.plot(x, y, linestyle='dashed', c=c, alpha=0.7, label=label, **argvs)
 
     def plot_scatter(self, val1, val2,
                      plot_fit_line=False,
@@ -1552,8 +1527,8 @@ class KDE_plot:
                      is_plot_1_1_line=False,
                      cmap='ocean',
                      reverse=0, s=0.3,
-                     title='',ax=None,
-                     silent=False,is_KDE=True,
+                     title='', ax=None,
+                     silent=False, is_KDE=True,
                      fit_line_c=None,
                      is_equal=False,
                      x_y_lim=None,
@@ -1585,15 +1560,15 @@ class KDE_plot:
         new_v2 = []
         for vals_12 in kde_val.Tools():
             # print(vals_12)
-            v1,v2 = vals_12
+            v1, v2 = vals_12
             if np.isnan(v1):
                 continue
             if np.isnan(v2):
                 continue
             new_v1.append(v1)
             new_v2.append(v2)
-        val1, val2 = new_v1,new_v2
-        kde_val = np.array([new_v1,new_v2])
+        val1, val2 = new_v1, new_v2
+        kde_val = np.array([new_v1, new_v2])
         if is_KDE:
             densObj = kde(kde_val)
             dens_vals = densObj.evaluate(kde_val)
@@ -1603,27 +1578,27 @@ class KDE_plot:
         if ax == None:
             plt.figure()
             plt.title(title)
-            plt.scatter(val1, val2, c=colors,linewidths=0, s=s,**kwargs)
+            plt.scatter(val1, val2, c=colors, linewidths=0, s=s, **kwargs)
         else:
             plt.title(title)
-            plt.scatter(val1, val2, c=colors,linewidths=0, s=s,**kwargs)
+            plt.scatter(val1, val2, c=colors, linewidths=0, s=s, **kwargs)
 
         if x_y_lim:
-            xmin,xmax,ymin,ymax = x_y_lim
-            plt.xlim(xmin,xmax)
-            plt.ylim(ymin,ymax)
+            xmin, xmax, ymin, ymax = x_y_lim
+            plt.xlim(xmin, xmax)
+            plt.ylim(ymin, ymax)
         if is_equal:
             plt.axis('equal')
         if plot_fit_line:
-            a, b, r = self.linefit(val1,val2)
+            a, b, r = self.linefit(val1, val2)
             if is_plot_1_1_line:
-                plt.plot([np.min([val1,val2]), np.max([val1,val2])], [np.min([val1,val2]), np.max([val1,val2])], '--', c='k')
-            self.plot_fit_line(a,b,r,val1,line_color=fit_line_c)
+                plt.plot([np.min([val1, val2]), np.max([val1, val2])], [np.min([val1, val2]), np.max([val1, val2])],
+                         '--', c='k')
+            self.plot_fit_line(a, b, r, val1, line_color=fit_line_c)
             # plt.legend()
-            return a,b,r
+            return a, b, r
 
-
-    def cmap_with_transparency(self,cmap,min_alpha=0.,max_alpha=0.5):
+    def cmap_with_transparency(self, cmap, min_alpha=0., max_alpha=0.5):
         ncolors = 256
         color_array = plt.get_cmap(cmap)(range(ncolors))
 
@@ -1642,6 +1617,7 @@ class KDE_plot:
         # plt.colorbar(mappable=h)
 
         pass
+
 
 class Pre_Process:
 
@@ -1672,7 +1648,7 @@ class Pre_Process:
                     if f.split('.')[0] == d:
                         # print(d)
                         array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fdir + f)
-                        array = np.array(array,dtype=np.float)
+                        array = np.array(array, dtype=np.float)
                         # print np.min(array)
                         # print type(array)
                         # plt.imshow(array)
@@ -1715,27 +1691,26 @@ class Pre_Process:
                 temp_dic = {}
         np.save(outdir + 'per_pix_dic_%03d' % 0, temp_dic)
 
-
-    def data_transform_with_date_list(self, fdir, outdir,date_list):
+    def data_transform_with_date_list(self, fdir, outdir, date_list):
         # 不可并行，内存不足
         Tools().mk_dir(outdir)
         outdir = outdir + '/'
         # 将空间图转换为数组
-        template_f = os.path.join(fdir,Tools().listdir(fdir)[0])
+        template_f = os.path.join(fdir, Tools().listdir(fdir)[0])
         template_arr = ToRaster().raster2array(template_f)[0]
         void_arr = np.ones_like(template_arr) * -999999
         all_array = []
         invalid_f_num = 0
         for d in tqdm(date_list, 'loading...'):
-            f = os.path.join(fdir,d)
+            f = os.path.join(fdir, d)
             if os.path.isfile(f):
                 array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(f)
-                array = np.array(array,dtype=np.float)
+                array = np.array(array, dtype=np.float)
                 all_array.append(array)
             else:
                 all_array.append(void_arr)
                 invalid_f_num += 1
-        print('\n','invalid_f_num:',invalid_f_num)
+        print('\n', 'invalid_f_num:', invalid_f_num)
         # exit()
 
         row = len(all_array[0])
@@ -1773,8 +1748,6 @@ class Pre_Process:
                 np.save(outdir + 'per_pix_dic_%03d' % (flag / 10000), temp_dic)
                 temp_dic = {}
         np.save(outdir + 'per_pix_dic_%03d' % 0, temp_dic)
-
-
 
     def kernel_cal_anomaly(self, params):
         fdir, f, save_dir = params
@@ -1825,7 +1798,7 @@ class Pre_Process:
                 std_ = climatology_std[mon]
                 mean_ = climatology_means[mon]
                 if std_ == 0:
-                    anomaly = 0 ##### 修改gpp
+                    anomaly = 0  ##### 修改gpp
                 else:
                     anomaly = (vals[i] - mean_) / std_
 
@@ -1838,7 +1811,7 @@ class Pre_Process:
 
         np.save(save_dir + f, anomaly_pix_dic)
 
-    def cal_anomaly(self,fdir,save_dir):
+    def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
         # save_dir = this_root + 'NDVI/per_pix_anomaly/'
         Tools().mk_dir(save_dir)
@@ -1852,37 +1825,34 @@ class Pre_Process:
         # for p in params:
         #     print(p[1])
         #     self.kernel_cal_anomaly(p)
-        MULTIPROCESS(self.kernel_cal_anomaly, params).run(process=4,process_or_thread='p',
-                                                         desc='calculating anomaly...')
+        MULTIPROCESS(self.kernel_cal_anomaly, params).run(process=4, process_or_thread='p',
+                                                          desc='calculating anomaly...')
 
-
-    def clean_per_pix(self,fdir,outdir):
+    def clean_per_pix(self, fdir, outdir):
         Tools().mk_dir(outdir)
         for f in tqdm(Tools().listdir(fdir)):
-            dic = Tools().load_npy(fdir+f)
+            dic = Tools().load_npy(fdir + f)
             clean_dic = {}
             for pix in dic:
                 val = dic[pix]
-                val = np.array(val,dtype=np.float)
-                val[val<-9999]=np.nan
-                new_val = Tools().interp_nan(val,kind='linear')
+                val = np.array(val, dtype=np.float)
+                val[val < -9999] = np.nan
+                new_val = Tools().interp_nan(val, kind='linear')
                 if len(new_val) == 1:
                     continue
                 # plt.plot(val)
                 # plt.show()
                 clean_dic[pix] = new_val
-            np.save(outdir+f,clean_dic)
+            np.save(outdir + f, clean_dic)
         pass
 
-
-
-    def detrend(self,fdir,outdir):
+    def detrend(self, fdir, outdir):
         Tools().mk_dir(outdir)
-        for f in tqdm(Tools().listdir(fdir),desc='detrend...'):
+        for f in tqdm(Tools().listdir(fdir), desc='detrend...'):
             dic = Tools().load_npy(fdir + f)
             dic_detrend = Tools().detrend_dic(dic)
             outf = outdir + f
-            Tools().save_npy(dic_detrend,outf)
+            Tools().save_npy(dic_detrend, outf)
         pass
 
 
@@ -1891,8 +1861,8 @@ class Plot_line:
 
         pass
 
-    def plot_line_with_gradient_error_band(self,x,y,yerr,color_gradient_n=100,c=None,
-                                           pow=2,min_alpha=0,max_alpha=1,**kwargs):
+    def plot_line_with_gradient_error_band(self, x, y, yerr, color_gradient_n=100, c=None,
+                                           pow=2, min_alpha=0, max_alpha=1, **kwargs):
         x = np.array(x)
         y = np.array(y)
         yerr = np.array(yerr)
@@ -1917,20 +1887,20 @@ class Plot_line:
             top.append(top_i)
         bottom = np.array(bottom)
         top = np.array(top)
-        bottom = bottom.Tools()
-        top = top.Tools()
+        bottom = bottom.T
+        top = top.T
         for i in range(color_gradient_n - 1):
             plt.fill_between(x, bottom[i], top[i], alpha=alpha_range[i], zorder=-99,
-                             color=c, edgecolor=None,**kwargs)
+                             color=c, edgecolor=None, **kwargs)
         pass
 
 
 class ToRaster:
     def __init__(self):
-        
+
         pass
 
-    def raster2array(self,rasterfn):
+    def raster2array(self, rasterfn):
         '''
         create array from raster
         Agrs:
@@ -1950,7 +1920,7 @@ class ToRaster:
         del raster
         return array, originX, originY, pixelWidth, pixelHeight
 
-    def array2raster_GDT_Byte(self,newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array):
+    def array2raster_GDT_Byte(self, newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array):
         cols = array.shape[1]
         rows = array.shape[0]
         originX = longitude_start
@@ -1975,7 +1945,7 @@ class ToRaster:
         outband.FlushCache()
         del outRaster
 
-    def array2raster(self,newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array, ndv=-999999):
+    def array2raster(self, newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array, ndv=-999999):
         cols = array.shape[1]
         rows = array.shape[0]
         originX = longitude_start
@@ -2002,7 +1972,8 @@ class ToRaster:
         outband.FlushCache()
         del outRaster
 
-    def array2raster_polar(self,newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array, ndv=-999999):
+    def array2raster_polar(self, newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array,
+                           ndv=-999999):
         cols = array.shape[1]
         rows = array.shape[0]
         originX = longitude_start
@@ -2048,6 +2019,7 @@ def kill_python_process():
         name = p.name()
         if 'python3.9' in name:
             p.kill()
+
 
 def run_ly_tools():
     raise UserWarning('Do not run this script')

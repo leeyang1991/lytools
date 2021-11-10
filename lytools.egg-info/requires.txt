@@ -7,4 +7,4 @@ pandas
 seaborn
 sklearn
 requests
-xarray
+psutil
