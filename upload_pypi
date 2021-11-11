@@ -1,4 +1,5 @@
 
+// sh upload_pypi in terminal
 rm dist/*
 
 python setup.py sdist bdist_wheel

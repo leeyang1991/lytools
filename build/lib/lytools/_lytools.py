@@ -28,6 +28,7 @@ import copy
 import random
 import requests
 import pickle
+import time
 
 from operator import itemgetter
 from itertools import groupby
@@ -121,12 +122,16 @@ class Tools:
     def save_df(self, df, outf):
         df.to_pickle(outf)
 
-    def df_to_excel(self, df, dff, head=1000):
-        if head == None:
+    def df_to_excel(self,df,dff,n=1000,random=False):
+        if n == None:
             df.to_excel('{}.xlsx'.format(dff))
         else:
-            df = df.head(head)
-            df.to_excel('{}.xlsx'.format(dff))
+            if random:
+                df = df.sample(n=n, random_state=1)
+                df.to_excel('{}.xlsx'.format(dff))
+            else:
+                df = df.head(n)
+                df.to_excel('{}.xlsx'.format(dff))
 
     def mask_999999_arr(self, arr):
         arr[arr < -9999] = np.nan
@@ -800,28 +805,38 @@ class DIC_and_TIF:
     tif转字典
     '''
 
-    def __init__(self, tif_template=None):
-        self.tif_template = tif_template
+    def __init__(self,
+                 originX=-180.,
+                 endX=180,
+                 originY=90.,
+                 endY=-90,
+                 pixelWidth=0.5,
+                 pixelHeight=-0.5,
+                 tif_template=None):
+        if tif_template:
+            self.arr_template, self.originX, self.originY, self.pixelWidth, self.pixelHeight = \
+                ToRaster().raster2array(tif_template)
+        else:
+            self.originX, self.originY, self.pixelWidth, self.pixelHeight = \
+                originX,originY,pixelWidth,pixelHeight
+            r = int((endY-originY)/pixelHeight)
+            c = int((endX-originX)/pixelWidth)
+            self.arr_template = np.ones((r,c))
         pass
 
     def arr_to_tif(self, array, newRasterfn):
-        # template
-        tif_template = self.tif_template
-        _, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
         grid_nan = np.isnan(array)
         grid = np.logical_not(grid_nan)
         array[np.logical_not(grid)] = -999999
-        ToRaster().array2raster(newRasterfn, originX, originY, pixelWidth, pixelHeight, array)
+        ToRaster().array2raster(newRasterfn, self.originX, self.originY, self.pixelWidth, self.pixelHeight, array)
         pass
 
     def arr_to_tif_GDT_Byte(self, array, newRasterfn):
         # template
-        tif_template = self.tif_template
-        _, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
         grid_nan = np.isnan(array)
         grid = np.logical_not(grid_nan)
         array[np.logical_not(grid)] = 255
-        ToRaster().array2raster_GDT_Byte(newRasterfn, originX, originY, pixelWidth, pixelHeight, array)
+        ToRaster().array2raster_GDT_Byte(newRasterfn, self.originX, self.originY, self.pixelWidth, self.pixelHeight, array)
         pass
 
     def spatial_arr_to_dic(self, arr):
@@ -837,18 +852,8 @@ class DIC_and_TIF:
 
     def pix_dic_to_spatial_arr(self, spatial_dic):
 
-        # x = []
-        # y = []
-        # for key in spatial_dic:
-        #     key_split = key.split('.')
-        #     x.append(key_split[0])
-        #     y.append(key_split[1])
-        # row = len(set(x))
-        # col = len(set(y))
-        tif_template = self.tif_template
-        arr_template, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
-        row = len(arr_template)
-        col = len(arr_template[0])
+        row = len(self.arr_template)
+        col = len(self.arr_template[0])
         spatial = []
         for r in range(row):
             temp = []
@@ -860,12 +865,6 @@ class DIC_and_TIF:
                 else:
                     temp.append(np.nan)
             spatial.append(temp)
-
-        # hist = []
-        # for v in all_vals:
-        #     if not np.isnan(v):
-        #         if 00<v<1.5:
-        #             hist.append(v)
 
         spatial = np.array(spatial, dtype=float)
         return spatial
@@ -886,19 +885,8 @@ class DIC_and_TIF:
         return spatial
 
     def pix_dic_to_spatial_arr_ascii(self, spatial_dic):
-        # dtype can be in ascii format
-        # x = []
-        # y = []
-        # for key in spatial_dic:
-        #     key_split = key.split('.')
-        #     x.append(key_split[0])
-        #     y.append(key_split[1])
-        # row = len(set(x))
-        # col = len(set(y))
-        tif_template = self.tif_template
-        arr_template, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
-        row = len(arr_template)
-        col = len(arr_template[0])
+        row = len(self.arr_template)
+        col = len(self.arr_template[0])
         spatial = []
         for r in range(row):
             temp = []
@@ -920,8 +908,8 @@ class DIC_and_TIF:
         # spatial = np.array(spatial)
         self.arr_to_tif(spatial, out_tif)
 
-    def pix_dic_to_shp(self, spatial_dic, outf):
-        pix_to_lon_lat_dic = DIC_and_TIF().spatial_tif_to_lon_lat_dic()
+    def pix_dic_to_shp(self, spatial_dic, outshp, temp_dir):
+        pix_to_lon_lat_dic = self.spatial_tif_to_lon_lat_dic(temp_dir)
         inlist = []
         for pix in spatial_dic:
             lon, lat = pix_to_lon_lat_dic[pix]
@@ -929,28 +917,28 @@ class DIC_and_TIF:
             if np.isnan(val):
                 continue
             inlist.append((lon, lat, val))
-        Tools().point_to_shp(inlist, outf)
+        Tools().point_to_shp(inlist, outshp)
 
         pass
 
-    def spatial_tif_to_lon_lat_dic(self, outf):
+    def spatial_tif_to_lon_lat_dic(self, temp_dir):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
+        this_class_dir = os.path.join(temp_dir,'DIC_and_TIF')
+        Tools().mk_dir(this_class_dir,force=True)
+        outf = os.path.join(this_class_dir,'spatial_tif_to_lon_lat_dic')
         if os.path.isfile(outf):
             print(f'loading {outf}')
             dic = Tools().load_npy(outf)
             print('done')
             return dic
         else:
-            tif_template = self.tif_template
-            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
-            # print(originX, originY, pixelWidth, pixelHeight)
-            # exit()
+            arr = self.arr_template
             pix_to_lon_lat_dic = {}
             for i in tqdm(list(range(len(arr))), desc='tif_to_lon_lat_dic'):
                 for j in range(len(arr[0])):
                     pix = (i, j)
-                    lon = originX + pixelWidth * j
-                    lat = originY + pixelHeight * i
+                    lon = self.originX + self.pixelWidth * j
+                    lat = self.originY + self.pixelHeight * i
                     pix_to_lon_lat_dic[pix] = tuple([lon, lat])
                     # print(tuple([lon, lat]))
             print('saving')
@@ -968,8 +956,7 @@ class DIC_and_TIF:
         pass
 
     def void_spatial_dic(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+        arr = self.arr_template
         void_dic = {}
         for row in range(len(arr)):
             for col in range(len(arr[row])):
@@ -978,8 +965,7 @@ class DIC_and_TIF:
         return void_dic
 
     def void_spatial_dic_nan(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+        arr = self.arr_template
         void_dic = {}
         for row in range(len(arr)):
             for col in range(len(arr[row])):
@@ -988,8 +974,7 @@ class DIC_and_TIF:
         return void_dic
 
     def void_spatial_dic_zero(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+        arr = self.arr_template
         void_dic = {}
         for row in range(len(arr)):
             for col in range(len(arr[row])):
@@ -998,8 +983,7 @@ class DIC_and_TIF:
         return void_dic
 
     def void_spatial_dic_ones(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+        arr = self.arr_template
         void_dic = {}
         for row in range(len(arr)):
             for col in range(len(arr[row])):
@@ -1007,9 +991,8 @@ class DIC_and_TIF:
                 void_dic[key] = 1.
         return void_dic
 
-    def plot_back_ground_arr(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+    def plot_back_ground_arr(self,rasterized_world_tif):
+        arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
         for i in range(len(arr)):
             temp = []
@@ -1027,9 +1010,9 @@ class DIC_and_TIF:
 
         pass
 
-    def plot_back_ground_arr_north_sphere(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+    def plot_back_ground_arr_north_sphere(self,rasterized_world_tif):
+
+        arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
         for i in range(len(arr)):
             temp = []
@@ -1041,15 +1024,11 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground[:180], 'gray', vmin=0, vmax=1.4, zorder=-1)
+        plt.imshow(back_ground[:int(len(arr)/2)], 'gray', vmin=0, vmax=1.4, zorder=-1)
 
-        # return back_ground
-
-        pass
 
     def mask_ocean_dic(self):
-        tif_template = self.tif_template
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+        arr = self.arr_template
         ocean_dic = {}
         for i in range(len(arr)):
             for j in range(len(arr[0])):
@@ -1067,13 +1046,14 @@ class DIC_and_TIF:
             for ri in range(r - window_pix, r + window_pix):
                 pix_new = (ci, ri)
                 dic_temp[pix_new] = 10
-        arr = DIC_and_TIF().pix_dic_to_spatial_arr(dic_temp)
+        arr = self.pix_dic_to_spatial_arr(dic_temp)
         # plt.figure()
-        DIC_and_TIF().plot_back_ground_arr()
+        self.plot_back_ground_arr()
         plt.imshow(arr, cmap='gray', vmin=0, vmax=100, zorder=99)
         plt.title(str(pix))
 
     def china_pix(self, pix):
+        # only for 0.5 spatial resolution
         r, c = pix
         china_r = list(range(75, 150))
         china_c = list(range(550, 620))
@@ -1090,8 +1070,7 @@ class DIC_and_TIF:
         import matplotlib.animation as animation
 
         def plot_back_ground_arr():
-            tif_template = self.tif_template
-            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(tif_template)
+            arr = self.arr_template
             back_ground = []
             for i in range(len(arr)):
                 temp = []
@@ -1351,6 +1330,27 @@ class DIC_and_TIF:
         inRasterSRS.ImportFromWkt(proj_wkt)
         return inRasterSRS
 
+    def lon_lat_to_pix(self,lon_list,lat_list):
+        pix_list = []
+        for i in range(len(lon_list)):
+            lon = lon_list[i]
+            lat = lat_list[i]
+            c = (lon - self.originX)/self.pixelWidth
+            c = int(c)
+            r = (lat - self.originY)/self.pixelHeight
+            r = int(r)
+            pix_list.append((r,c))
+        pix_list = tuple(pix_list)
+        return pix_list
+
+    def shp_to_raster(self,in_shp,output_raster,pixel_size,ndv=-999999):
+        input_shp = ogr.Open(in_shp)
+        shp_layer = input_shp.GetLayer()
+        xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+        ds = gdal.Rasterize(output_raster, in_shp, xRes=pixel_size, yRes=pixel_size,
+                            burnValues=1,noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
+                            outputType=gdal.GDT_Float32)
+        ds = None
 
 class MULTIPROCESS:
     '''
@@ -1687,9 +1687,9 @@ class Pre_Process:
             temp_dic[key] = arr
             if flag % 10000 == 0:
                 # print('\nsaving %02d' % (flag / 10000)+'\n')
-                np.save(outdir + 'per_pix_dic_%03d' % (flag / 10000), temp_dic)
+                np.save(outdir + '/per_pix_dic_%03d' % (flag / 10000), temp_dic)
                 temp_dic = {}
-        np.save(outdir + 'per_pix_dic_%03d' % 0, temp_dic)
+        np.save(outdir + '/per_pix_dic_%03d' % 0, temp_dic)
 
     def data_transform_with_date_list(self, fdir, outdir, date_list):
         # 不可并行，内存不足
@@ -1831,7 +1831,7 @@ class Pre_Process:
     def clean_per_pix(self, fdir, outdir):
         Tools().mk_dir(outdir)
         for f in tqdm(Tools().listdir(fdir)):
-            dic = Tools().load_npy(fdir + f)
+            dic = Tools().load_npy(fdir + '/' + f)
             clean_dic = {}
             for pix in dic:
                 val = dic[pix]
@@ -1843,7 +1843,7 @@ class Pre_Process:
                 # plt.plot(val)
                 # plt.show()
                 clean_dic[pix] = new_val
-            np.save(outdir + f, clean_dic)
+            np.save(outdir + '/' + f, clean_dic)
         pass
 
     def detrend(self, fdir, outdir):
@@ -2011,14 +2011,17 @@ class ToRaster:
 
 
 def kill_python_process():
-    # print('will kill all python3.9 process, \033[7m\033[31mdouble\33[0m press ENTER to continue')
-    # pause()
-    # print('One more ENTER...')
-    # pause()
     for p in psutil.process_iter():
         name = p.name()
         if 'python3.9' in name:
             p.kill()
+
+def sleep(t=1):
+    time.sleep(t)
+
+def pause():
+    # ANSI colors: https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
+    input('\33[7m'+"PRESS ENTER TO CONTINUE."+'\33[0m')
 
 
 def run_ly_tools():
