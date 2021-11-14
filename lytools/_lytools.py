@@ -122,7 +122,7 @@ class Tools:
     def save_df(self, df, outf):
         df.to_pickle(outf)
 
-    def df_to_excel(self,df,dff,n=1000,random=False):
+    def df_to_excel(self, df, dff, n=1000, random=False):
         if n == None:
             df.to_excel('{}.xlsx'.format(dff))
         else:
@@ -818,10 +818,10 @@ class DIC_and_TIF:
                 ToRaster().raster2array(tif_template)
         else:
             self.originX, self.originY, self.pixelWidth, self.pixelHeight = \
-                originX,originY,pixelWidth,pixelHeight
-            r = int((endY-originY)/pixelHeight)
-            c = int((endX-originX)/pixelWidth)
-            self.arr_template = np.ones((r,c))
+                originX, originY, pixelWidth, pixelHeight
+            r = int((endY - originY) / pixelHeight)
+            c = int((endX - originX) / pixelWidth)
+            self.arr_template = np.ones((r, c))
         pass
 
     def arr_to_tif(self, array, newRasterfn):
@@ -836,7 +836,8 @@ class DIC_and_TIF:
         grid_nan = np.isnan(array)
         grid = np.logical_not(grid_nan)
         array[np.logical_not(grid)] = 255
-        ToRaster().array2raster_GDT_Byte(newRasterfn, self.originX, self.originY, self.pixelWidth, self.pixelHeight, array)
+        ToRaster().array2raster_GDT_Byte(newRasterfn, self.originX, self.originY, self.pixelWidth, self.pixelHeight,
+                                         array)
         pass
 
     def spatial_arr_to_dic(self, arr):
@@ -923,9 +924,9 @@ class DIC_and_TIF:
 
     def spatial_tif_to_lon_lat_dic(self, temp_dir):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
-        this_class_dir = os.path.join(temp_dir,'DIC_and_TIF')
-        Tools().mk_dir(this_class_dir,force=True)
-        outf = os.path.join(this_class_dir,'spatial_tif_to_lon_lat_dic')
+        this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
+        Tools().mk_dir(this_class_dir, force=True)
+        outf = os.path.join(this_class_dir, 'spatial_tif_to_lon_lat_dic')
         if os.path.isfile(outf):
             print(f'loading {outf}')
             dic = Tools().load_npy(outf)
@@ -991,7 +992,7 @@ class DIC_and_TIF:
                 void_dic[key] = 1.
         return void_dic
 
-    def plot_back_ground_arr(self,rasterized_world_tif):
+    def plot_back_ground_arr(self, rasterized_world_tif):
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
         for i in range(len(arr)):
@@ -1010,7 +1011,7 @@ class DIC_and_TIF:
 
         pass
 
-    def plot_back_ground_arr_north_sphere(self,rasterized_world_tif):
+    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif):
 
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
@@ -1024,8 +1025,7 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground[:int(len(arr)/2)], 'gray', vmin=0, vmax=1.4, zorder=-1)
-
+        plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1)
 
     def mask_ocean_dic(self):
         arr = self.arr_template
@@ -1330,27 +1330,43 @@ class DIC_and_TIF:
         inRasterSRS.ImportFromWkt(proj_wkt)
         return inRasterSRS
 
-    def lon_lat_to_pix(self,lon_list,lat_list):
+    def lon_lat_to_pix(self, lon_list, lat_list):
         pix_list = []
+        success_lon = 0
+        success_lat = 0
         for i in range(len(lon_list)):
             lon = lon_list[i]
             lat = lat_list[i]
-            c = (lon - self.originX)/self.pixelWidth
-            c = int(c)
-            r = (lat - self.originY)/self.pixelHeight
-            r = int(r)
-            pix_list.append((r,c))
+            if lon > 180 or lon < -180:
+                success_lon = 0
+            else:
+                c = (lon - self.originX) / self.pixelWidth
+                c = int(c)
+                success_lon = 1
+
+            if lat > 90 or lat < -90:
+                success_lat = 0
+            else:
+                r = (lat - self.originY) / self.pixelHeight
+                r = int(r)
+                success_lat = 1
+            if success_lat == 1 and success_lon == 1:
+                pix_list.append((r, c))
+            else:
+                pix_list.append(np.nan)
+
         pix_list = tuple(pix_list)
         return pix_list
 
-    def shp_to_raster(self,in_shp,output_raster,pixel_size,ndv=-999999):
+    def shp_to_raster(self, in_shp, output_raster, pixel_size, ndv=-999999):
         input_shp = ogr.Open(in_shp)
         shp_layer = input_shp.GetLayer()
         xmin, xmax, ymin, ymax = shp_layer.GetExtent()
         ds = gdal.Rasterize(output_raster, in_shp, xRes=pixel_size, yRes=pixel_size,
-                            burnValues=1,noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
+                            burnValues=1, noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
                             outputType=gdal.GDT_Float32)
         ds = None
+
 
 class MULTIPROCESS:
     '''
@@ -1558,7 +1574,7 @@ class KDE_plot:
             print('doing kernel density estimation... ')
         new_v1 = []
         new_v2 = []
-        for vals_12 in kde_val.Tools():
+        for vals_12 in kde_val.T:
             # print(vals_12)
             v1, v2 = vals_12
             if np.isnan(v1):
@@ -2016,12 +2032,14 @@ def kill_python_process():
         if 'python3.9' in name:
             p.kill()
 
+
 def sleep(t=1):
     time.sleep(t)
 
+
 def pause():
     # ANSI colors: https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
-    input('\33[7m'+"PRESS ENTER TO CONTINUE."+'\33[0m')
+    input('\33[7m' + "PRESS ENTER TO CONTINUE." + '\33[0m')
 
 
 def run_ly_tools():
