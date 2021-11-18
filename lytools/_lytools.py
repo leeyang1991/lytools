@@ -1827,6 +1827,34 @@ class Pre_Process:
 
         np.save(save_dir + f, anomaly_pix_dic)
 
+    def z_score_climatology(self,vals):
+        pix_anomaly = []
+        climatology_means = []
+        climatology_std = []
+        for m in range(1, 13):
+            one_mon = []
+            for i in range(len(vals)):
+                mon = i % 12 + 1
+                if mon == m:
+                    one_mon.append(vals[i])
+            mean = np.nanmean(one_mon)
+            std = np.nanstd(one_mon)
+            climatology_means.append(mean)
+            climatology_std.append(std)
+        for i in range(len(vals)):
+            mon = i % 12
+            std_ = climatology_std[mon]
+            mean_ = climatology_means[mon]
+            if std_ == 0:
+                anomaly = 0
+            else:
+                anomaly = (vals[i] - mean_) / std_
+            pix_anomaly.append(anomaly)
+        pix_anomaly = np.array(pix_anomaly)
+        return pix_anomaly
+
+
+
     def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
         # save_dir = this_root + 'NDVI/per_pix_anomaly/'
