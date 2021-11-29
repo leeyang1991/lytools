@@ -43,6 +43,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import pyplot as plt
 
 import psutil
+import hashlib
 
 
 class Tools:
@@ -551,6 +552,13 @@ class Tools:
         r_list = np.array(r_list)
 
         return time_series, r_list
+
+    def get_df_unique_val_list(self, df, var_name):
+        var_list = df[var_name].tolist()
+        var_list = list(set(var_list))
+        var_list.sort()
+        var_list = tuple(var_list)
+        return var_list
 
 
 class SMOOTH:
@@ -1358,15 +1366,6 @@ class DIC_and_TIF:
         pix_list = tuple(pix_list)
         return pix_list
 
-    def shp_to_raster(self, in_shp, output_raster, pixel_size, ndv=-999999):
-        input_shp = ogr.Open(in_shp)
-        shp_layer = input_shp.GetLayer()
-        xmin, xmax, ymin, ymax = shp_layer.GetExtent()
-        ds = gdal.Rasterize(output_raster, in_shp, xRes=pixel_size, yRes=pixel_size,
-                            burnValues=1, noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
-                            outputType=gdal.GDT_Float32)
-        ds = None
-
 
 class MULTIPROCESS:
     '''
@@ -1827,7 +1826,7 @@ class Pre_Process:
 
         np.save(save_dir + f, anomaly_pix_dic)
 
-    def z_score_climatology(self,vals):
+    def z_score_climatology(self, vals):
         pix_anomaly = []
         climatology_means = []
         climatology_std = []
@@ -1852,8 +1851,6 @@ class Pre_Process:
             pix_anomaly.append(anomaly)
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
-
-
 
     def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
@@ -2052,6 +2049,67 @@ class ToRaster:
         # outRaster.SetProjection(ref_chr)
         outband.FlushCache()
         del outRaster
+
+    def shp_to_raster(self, in_shp, output_raster, pixel_size, in_raster_template=None, ndv=-999999):
+        input_shp = ogr.Open(in_shp)
+        shp_layer = input_shp.GetLayer()
+        if in_raster_template:
+            raster = gdal.Open(in_raster_template)
+            ulx, xres, xskew, uly, yskew, yres = raster.GetGeoTransform()
+            lrx = ulx + (raster.RasterXSize * xres)
+            lry = uly + (raster.RasterYSize * yres)
+            xmin, xmax, ymin, ymax = ulx, lrx, lry, uly
+        else:
+            xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+        ds = gdal.Rasterize(output_raster, in_shp, xRes=pixel_size, yRes=pixel_size,
+                            burnValues=1, noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
+                            outputType=gdal.GDT_Float32)
+        ds = None
+
+    def clip_array(self,in_raster,out_raster,in_shp):
+        in_array, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
+        input_shp = ogr.Open(in_shp)
+        shp_layer = input_shp.GetLayer()
+        xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+        in_shp_encode = in_shp.encode('utf-8')
+        originX_str = str(originX)
+        originY_str = str(originY)
+        originX_str = originX_str.encode('utf-8')
+        originY_str = originY_str.encode('utf-8')
+        m1 = hashlib.md5(originX_str + originY_str + in_shp_encode)
+        md5filename = m1.hexdigest() + '.tif'
+        temp_dir = 'temporary_directory/'
+        Tools().mk_dir(temp_dir)
+        temp_out_raster = temp_dir+md5filename
+        if not os.path.isfile(temp_out_raster):
+            self.shp_to_raster(in_shp, temp_out_raster, pixelWidth,in_raster_template=in_raster,)
+        rastered_mask_array = self.raster2array(temp_out_raster)[0]
+        in_mask_arr = np.array(rastered_mask_array)
+        in_mask_arr[in_mask_arr < -9999] = False
+        in_mask_arr = np.array(in_mask_arr, dtype=bool)
+        in_array[~in_mask_arr] = np.nan
+        lon_list = [xmin, xmax]
+        lat_list = [ymin, ymax]
+        pix_list = DIC_and_TIF(tif_template=in_raster).lon_lat_to_pix(lon_list,lat_list)
+        pix1,pix2 = pix_list
+        in_array = in_array[pix2[0]:pix1[0]]
+        in_array = in_array.T
+        in_array = in_array[pix1[1]:pix2[1]]
+        in_array = in_array.T
+        longitude_start, latitude_start = xmin,ymax
+        self.array2raster(out_raster,longitude_start, latitude_start, pixelWidth, pixelHeight,in_array)
+
+
+    def mask_array(self,in_raster,out_raster,in_mask_raster):
+        in_arr,originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
+        in_mask_arr,originX, originY, pixelWidth, pixelHeight = self.raster2array(in_mask_raster)
+        in_arr = np.array(in_arr,dtype=float)
+        in_mask_arr = np.array(in_mask_arr)
+        in_mask_arr[in_mask_arr<-9999]=False
+        in_mask_arr = np.array(in_mask_arr,dtype=bool)
+        in_arr[~in_mask_arr] = np.nan
+        longitude_start, latitude_start, pixelWidth, pixelHeight = originX, originY, pixelWidth, pixelHeight
+        self.array2raster(out_raster,longitude_start, latitude_start, pixelWidth, pixelHeight,in_arr)
 
 
 def kill_python_process():
