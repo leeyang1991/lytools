@@ -560,6 +560,19 @@ class Tools:
         var_list = tuple(var_list)
         return var_list
 
+    def normalize(self,vals,norm_max=1.,norm_min=-1.,up_limit=None,bottom_limit=None):
+        vals_max = np.nanmax(vals)
+        vals_min = np.nanmin(vals)
+        norm_list = []
+        for v in vals:
+            percentile = (v-vals_min)/(vals_max-vals_min)
+            norm = percentile * (norm_max - norm_min) + norm_min
+            norm_list.append(norm)
+        norm_list = np.array(norm_list)
+        if up_limit and bottom_limit:
+            norm_list[norm_list>up_limit] = np.nan
+            norm_list[norm_list<bottom_limit] = np.nan
+        return norm_list
 
 class SMOOTH:
     '''
@@ -1896,6 +1909,22 @@ class Pre_Process:
             Tools().save_npy(dic_detrend, outf)
         pass
 
+    def compose_tif_list(self,flist,outf):
+        tif_template = flist[0]
+        void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
+        for f in tqdm(flist,desc='transforming...'):
+            array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(f)
+            for r in range(len(array)):
+                for c in range(len(array[0])):
+                    pix = (r,c)
+                    val = array[r][c]
+                    void_dic[pix].append(val)
+        spatial_dic = {}
+        for pix in tqdm(void_dic,desc='calculating mean...'):
+            vals = void_dic[pix]
+            mean = np.nanmean(vals)
+            spatial_dic[pix] = mean
+        DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic,outf)
 
 class Plot_line:
     def __init__(self):
