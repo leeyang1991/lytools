@@ -44,6 +44,7 @@ from matplotlib import pyplot as plt
 
 import psutil
 import hashlib
+from calendar import monthrange
 
 
 class Tools:
@@ -61,6 +62,10 @@ class Tools:
                 os.makedirs(dir)
             else:
                 os.mkdir(dir)
+
+    def path_join(self,*args):
+        path = os.path.join(*args)
+        return path
 
     def load_npy_dir(self, fdir, condition=''):
         dic = {}
@@ -574,6 +579,10 @@ class Tools:
             norm_list[norm_list<bottom_limit] = np.nan
         return norm_list
 
+
+    def number_of_days_in_month(self,year=2019, month=2):
+        return monthrange(year, month)[1]
+    
 class SMOOTH:
     '''
     一些平滑算法
@@ -2103,9 +2112,13 @@ class ToRaster:
         in_shp_encode = in_shp.encode('utf-8')
         originX_str = str(originX)
         originY_str = str(originY)
+        pixelWidth_str = str(pixelWidth)
+        pixelHeight_str = str(pixelHeight)
         originX_str = originX_str.encode('utf-8')
         originY_str = originY_str.encode('utf-8')
-        m1 = hashlib.md5(originX_str + originY_str + in_shp_encode)
+        pixelWidth_str = pixelWidth_str.encode('utf-8')
+        pixelHeight_str = pixelHeight_str.encode('utf-8')
+        m1 = hashlib.md5(originX_str + originY_str+pixelWidth_str+ pixelHeight_str+ in_shp_encode)
         md5filename = m1.hexdigest() + '.tif'
         temp_dir = 'temporary_directory/'
         Tools().mk_dir(temp_dir)
