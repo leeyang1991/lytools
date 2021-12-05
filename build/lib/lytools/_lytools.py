@@ -1322,7 +1322,7 @@ class DIC_and_TIF:
         array_unify_left_right = []
         for i in array_unify_top_bottom:
             if len(left_array_insert) != 0:
-                arr_temp = np.insert(i, obj=0, values=left_line_num, axis=0)
+                arr_temp = np.insert(i, obj=0, values=left_array_insert, axis=0)
             else:
                 arr_temp = i
             if len(right_array_insert) != 0:
@@ -1331,7 +1331,6 @@ class DIC_and_TIF:
                 array_temp1 = arr_temp
             array_unify_left_right.append(array_temp1)
         array_unify_left_right = np.array(array_unify_left_right)
-        print('{} is unified to the shape of'.format(in_tif), np.shape(array_unify_left_right))
         newRasterfn = out_tif
         ToRaster().array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
@@ -1684,7 +1683,7 @@ class Pre_Process:
                 if f.endswith('.tif'):
                     if f.split('.')[0] == d:
                         # print(d)
-                        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fdir + f)
+                        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(Tools().path_join(fdir, f))
                         array = np.array(array, dtype=np.float)
                         # print np.min(array)
                         # print type(array)
@@ -1735,7 +1734,7 @@ class Pre_Process:
         # 将空间图转换为数组
         template_f = os.path.join(fdir, Tools().listdir(fdir)[0])
         template_arr = ToRaster().raster2array(template_f)[0]
-        void_arr = np.ones_like(template_arr) * -999999
+        void_arr = np.ones_like(template_arr) * np.nan
         all_array = []
         invalid_f_num = 0
         for d in tqdm(date_list, 'loading...'):
@@ -1788,7 +1787,8 @@ class Pre_Process:
 
     def kernel_cal_anomaly(self, params):
         fdir, f, save_dir = params
-        pix_dic = Tools().load_npy(fdir + f)
+        fpath = Tools().path_join(fdir, f)
+        pix_dic = Tools().load_npy(fpath)
         anomaly_pix_dic = {}
         for pix in pix_dic:
             ####### one pix #######
@@ -1845,8 +1845,8 @@ class Pre_Process:
             # plt.show()
             pix_anomaly = np.array(pix_anomaly)
             anomaly_pix_dic[pix] = pix_anomaly
-
-        np.save(save_dir + f, anomaly_pix_dic)
+        save_f = Tools().path_join(save_dir, f)
+        np.save(save_f, anomaly_pix_dic)
 
     def z_score_climatology(self, vals):
         pix_anomaly = []
@@ -1918,7 +1918,7 @@ class Pre_Process:
             Tools().save_npy(dic_detrend, outf)
         pass
 
-    def compose_tif_list(self,flist,outf):
+    def compose_tif_list(self,flist,outf,ndv=-99999):
         tif_template = flist[0]
         void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
         for f in tqdm(flist,desc='transforming...'):
@@ -1931,9 +1931,23 @@ class Pre_Process:
         spatial_dic = {}
         for pix in tqdm(void_dic,desc='calculating mean...'):
             vals = void_dic[pix]
+            vals = np.array(vals)
+            vals[vals<ndv] = np.nan
             mean = np.nanmean(vals)
             spatial_dic[pix] = mean
         DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic,outf)
+
+    def time_series_dic_to_tif(self,spatial_dic,tif_template,outf_list):
+        for i in tqdm(range(len(outf_list))):
+            outf = outf_list[i]
+            spatial_dic_i = {}
+            for pix in spatial_dic:
+                vals = spatial_dic[pix]
+                val = vals[i]
+                spatial_dic_i[pix] = val
+            arr = DIC_and_TIF(tif_template=tif_template).pix_dic_to_spatial_arr(spatial_dic_i)
+            DIC_and_TIF(tif_template=tif_template).arr_to_tif(arr,outf)
+
 
 class Plot_line:
     def __init__(self):
@@ -2153,6 +2167,9 @@ class ToRaster:
         longitude_start, latitude_start, pixelWidth, pixelHeight = originX, originY, pixelWidth, pixelHeight
         self.array2raster(out_raster,longitude_start, latitude_start, pixelWidth, pixelHeight,in_arr)
 
+    def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
+        dataset = gdal.Open(in_tif)
+        gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
 def kill_python_process():
     for p in psutil.process_iter():
