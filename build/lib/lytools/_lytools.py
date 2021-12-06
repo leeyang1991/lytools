@@ -42,7 +42,6 @@ from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import pyplot as plt
 
-import psutil
 import hashlib
 from calendar import monthrange
 
@@ -2171,11 +2170,6 @@ class ToRaster:
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
-def kill_python_process():
-    for p in psutil.process_iter():
-        name = p.name()
-        if 'python3.9' in name:
-            p.kill()
 
 
 def sleep(t=1):

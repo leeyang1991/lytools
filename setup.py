@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='lytools',
-    version='0.0.10',
+    version='0.0.11',
     author='Yang Lee',
     author_email='leeyang1991@gmail.com',
     packages=['lytools'],
@@ -20,6 +20,5 @@ setup(
     'seaborn',
     'sklearn',
     'requests',
-    'psutil',
     ],
 )
