@@ -1386,6 +1386,19 @@ class DIC_and_TIF:
         pix_list = tuple(pix_list)
         return pix_list
 
+    def gen_ones_background_tif(self,outtif):
+        # outtif = T.path_join(this_root,'conf','ones_background.tif')
+        arr = self.void_spatial_dic_ones()
+        self.pix_dic_to_tif(arr,outtif)
+        pass
+
+    def gen_land_background_tif(self,shp,outtif):
+        # outtif = T.path_join(this_root,'conf','land.tif')
+        # shp = T.path_join(this_root,'shp','world.shp')
+        ToRaster().shp_to_raster(shp,outtif,0.5)
+        self.unify_raster(outtif,outtif)
+        pass
+
 
 class MULTIPROCESS:
     '''
