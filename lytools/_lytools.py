@@ -1399,6 +1399,11 @@ class DIC_and_TIF:
         self.unify_raster(outtif,outtif)
         pass
 
+    def pix_to_lon_lat(self,pix):
+        r,c = pix
+        lat = self.originY + (self.pixelHeight * r)
+        lon = self.originX + (self.pixelWidth * c)
+        return lon,lat
 
 class MULTIPROCESS:
     '''
