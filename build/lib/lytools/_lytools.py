@@ -663,6 +663,16 @@ class Tools:
         return dic
         pass
 
+    def shasum(self,fpath, isprint=True):
+        fr = open(fpath, 'rb')
+        content_bytes = fr.read()
+        readable_hash = hashlib.sha256(content_bytes).hexdigest()
+        if isprint:
+            print(fpath)
+            print(readable_hash)
+            print('--' * 8)
+        return readable_hash
+
 class SMOOTH:
     '''
     一些平滑算法
