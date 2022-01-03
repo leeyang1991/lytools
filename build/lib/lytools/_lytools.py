@@ -614,6 +614,37 @@ class Tools:
         df = pd.DataFrame(data=data, columns=columns[0],index=index)
         return df
 
+    def dic_to_df_different_columns(self, dic, key_col_str='__key__'):
+        '''
+        :param dic:
+        {
+        key1:{col1:val1, col2:val2},
+        key2:{col1:val1, col2:val2},
+        key3:{col1:val1, col2:val2},
+        }
+        :param key_col_str: define a Dataframe column to store keys of dict
+        :return: Dataframe
+        '''
+        df = pd.DataFrame()
+        key_list = []
+        for key in tqdm(dic):
+            dic_i = dic[key]
+            key_list.append(key)
+            # print(dic_i)
+            new_dic = {k: [] for k in dic_i}
+            for k in dic_i:
+                new_dic[k].append(dic_i[k])
+            df_i = pd.DataFrame.from_dict(data=new_dic)
+            df = df.append(df_i)
+        # print(len(data[0]))
+        # df = pd.DataFrame(data=data, columns=columns, index=index)
+        df[key_col_str] = key_list
+        columns = df.columns.tolist()
+        columns.remove(key_col_str)
+        columns.insert(0, key_col_str)
+        df = df[columns]
+        return df
+
     def df_to_dic(self,df,key_str='__key__'):
         '''
         :param df: Dataframe
