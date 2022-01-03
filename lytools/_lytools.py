@@ -558,7 +558,8 @@ class Tools:
         return time_series, r_list
 
     def get_df_unique_val_list(self, df, var_name):
-        var_list = df[var_name].tolist()
+        var_list = df[var_name]
+        var_list = var_list.dropna()
         var_list = list(set(var_list))
         var_list.sort()
         var_list = tuple(var_list)
@@ -581,7 +582,56 @@ class Tools:
 
     def number_of_days_in_month(self,year=2019, month=2):
         return monthrange(year, month)[1]
-    
+
+
+    def dic_to_df(self,dic,key_col_str='__key__'):
+        '''
+        :param dic:
+        {
+        key1:{col1:val1, col2:val2},
+        key2:{col1:val1, col2:val2},
+        key3:{col1:val1, col2:val2},
+        }
+        :param key_col_str: define a Dataframe column to store keys of dict
+        :return: Dataframe
+        '''
+        data = []
+        columns = []
+        index = []
+        for key in dic:
+            vals = dic[key]
+            vals_list = []
+            col_list = []
+            vals_list.append(key)
+            col_list.append(key_col_str)
+            for col in vals:
+                val = vals[col]
+                vals_list.append(val)
+                col_list.append(col)
+            data.append(vals_list)
+            columns.append(col_list)
+            index.append(key)
+        df = pd.DataFrame(data=data, columns=columns[0],index=index)
+        return df
+
+    def df_to_dic(self,df,key_str='__key__'):
+        '''
+        :param df: Dataframe
+        :param key_str: Unique column name
+        :return:
+        '''
+        columns = df.columns
+        dic = {}
+        for i, row in df.iterrows():
+            key = row[key_str]
+            dic_i = {}
+            for col in columns:
+                val = row[col]
+                dic_i[col] = val
+            dic[key] = dic_i
+        return dic
+        pass
+
 class SMOOTH:
     '''
     一些平滑算法
@@ -1405,6 +1455,19 @@ class DIC_and_TIF:
         lon = self.originX + (self.pixelWidth * c)
         return lon,lat
 
+    def plot_sites_location(self,lon_list,lat_list,background_tif,isshow=True):
+        pix_list = self.lon_lat_to_pix(lon_list,lat_list)
+        lon_list = []
+        lat_list = []
+        for lon,lat in pix_list:
+            lon_list.append(lon)
+            lat_list.append(lat)
+        self.plot_back_ground_arr(background_tif)
+        plt.scatter(lat_list,lon_list,color='r')
+        if isshow:
+            plt.show()
+
+
 class MULTIPROCESS:
     '''
     可对类内的函数进行多进程并行
@@ -1935,10 +1998,13 @@ class Pre_Process:
             Tools().save_npy(dic_detrend, outf)
         pass
 
-    def compose_tif_list(self,flist,outf,ndv=-99999):
+    def compose_tif_list(self,flist,outf,less_than=-9999):
+        # less_than -9999, mask as np.nan
         tif_template = flist[0]
         void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
         for f in tqdm(flist,desc='transforming...'):
+            if not f.endswith('.tif'):
+                continue
             array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(f)
             for r in range(len(array)):
                 for c in range(len(array[0])):
@@ -1949,7 +2015,7 @@ class Pre_Process:
         for pix in tqdm(void_dic,desc='calculating mean...'):
             vals = void_dic[pix]
             vals = np.array(vals)
-            vals[vals<ndv] = np.nan
+            vals[vals<less_than] = np.nan
             mean = np.nanmean(vals)
             spatial_dic[pix] = mean
         DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic,outf)
