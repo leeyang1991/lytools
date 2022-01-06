@@ -29,6 +29,7 @@ import random
 import requests
 import pickle
 import time
+import datetime
 
 from operator import itemgetter
 from itertools import groupby
@@ -672,6 +673,23 @@ class Tools:
             print(readable_hash)
             print('--' * 8)
         return readable_hash
+
+    def gen_time_stamps(self,
+                          start=datetime.datetime(2020, 1, 1),
+                          end=datetime.datetime(2020, 1, 2),
+                          delta=datetime.timedelta(hours=0.5)
+                          ):
+
+        def daterange_i(start_date, end_date):
+            while start_date < end_date:
+                yield start_date
+                start_date += delta
+
+        half_time_stamps = []
+        for tt in daterange_i(start, end):
+            half_time_stamps.append(tt)
+        return half_time_stamps
+
 
 class SMOOTH:
     '''
@@ -1449,25 +1467,27 @@ class DIC_and_TIF:
         inRasterSRS.ImportFromWkt(proj_wkt)
         return inRasterSRS
 
-    def lon_lat_to_pix(self, lon_list, lat_list):
+    def lon_lat_to_pix(self, lon_list, lat_list, isInt=True):
         pix_list = []
-        success_lon = 0
-        success_lat = 0
         for i in range(len(lon_list)):
             lon = lon_list[i]
             lat = lat_list[i]
             if lon > 180 or lon < -180:
                 success_lon = 0
+                c = np.nan
             else:
                 c = (lon - self.originX) / self.pixelWidth
-                c = int(c)
+                if isInt == True:
+                    c = int(c)
                 success_lon = 1
 
             if lat > 90 or lat < -90:
                 success_lat = 0
+                r = np.nan
             else:
                 r = (lat - self.originY) / self.pixelHeight
-                r = int(r)
+                if isInt == True:
+                    r = int(r)
                 success_lat = 1
             if success_lat == 1 and success_lon == 1:
                 pix_list.append((r, c))
@@ -1496,7 +1516,7 @@ class DIC_and_TIF:
         lon = self.originX + (self.pixelWidth * c)
         return lon,lat
 
-    def plot_sites_location(self,lon_list,lat_list,background_tif,isshow=True):
+    def plot_sites_location(self,lon_list,lat_list,background_tif,text_list=None,colorlist=None,isshow=True):
         pix_list = self.lon_lat_to_pix(lon_list,lat_list)
         lon_list = []
         lat_list = []
@@ -1504,7 +1524,14 @@ class DIC_and_TIF:
             lon_list.append(lon)
             lat_list.append(lat)
         self.plot_back_ground_arr(background_tif)
-        plt.scatter(lat_list,lon_list,color='r')
+        if colorlist:
+            plt.scatter(lat_list,lon_list,c=colorlist,cmap='jet')
+            plt.colorbar()
+        else:
+            plt.scatter(lat_list, lon_list)
+            if not text_list == None:
+                for i in range(len(lon_list)):
+                    plt.text(lat_list[i], lon_list[i],text_list[i])
         if isshow:
             plt.show()
 
