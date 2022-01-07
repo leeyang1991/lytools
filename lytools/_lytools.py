@@ -21,6 +21,7 @@ import multiprocessing
 from multiprocessing.pool import ThreadPool as TPool
 
 import os
+from os.path import *
 import copyreg
 import types
 import math
@@ -948,17 +949,16 @@ class DIC_and_TIF:
                  endX=180,
                  originY=90.,
                  endY=-90,
-                 pixelWidth=0.5,
-                 pixelHeight=-0.5,
+                 pixelsize=0.5,
                  tif_template=None):
         if tif_template:
             self.arr_template, self.originX, self.originY, self.pixelWidth, self.pixelHeight = \
                 ToRaster().raster2array(tif_template)
         else:
             self.originX, self.originY, self.pixelWidth, self.pixelHeight = \
-                originX, originY, pixelWidth, pixelHeight
-            r = int((endY - originY) / pixelHeight)
-            c = int((endX - originX) / pixelWidth)
+                originX, originY, pixelsize, -pixelsize
+            r = int((endY - originY) / self.pixelHeight)
+            c = int((endX - originX) / self.pixelWidth)
             self.arr_template = np.ones((r, c))
         pass
 
@@ -1132,12 +1132,13 @@ class DIC_and_TIF:
 
     def plot_back_ground_arr(self, rasterized_world_tif):
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
+        ndv = ToRaster().get_ndv(rasterized_world_tif)
         back_ground = []
         for i in range(len(arr)):
             temp = []
             for j in range(len(arr[0])):
                 val = arr[i][j]
-                if val < -99:
+                if val == ndv:
                     temp.append(np.nan)
                 else:
                     temp.append(1)
@@ -1503,10 +1504,10 @@ class DIC_and_TIF:
         self.pix_dic_to_tif(arr,outtif)
         pass
 
-    def gen_land_background_tif(self,shp,outtif):
+    def gen_land_background_tif(self,shp,outtif,pix_size=0.5):
         # outtif = T.path_join(this_root,'conf','land.tif')
         # shp = T.path_join(this_root,'shp','world.shp')
-        ToRaster().shp_to_raster(shp,outtif,0.5)
+        ToRaster().shp_to_raster(shp,outtif,pix_size)
         self.unify_raster(outtif,outtif)
         pass
 
@@ -1516,14 +1517,30 @@ class DIC_and_TIF:
         lon = self.originX + (self.pixelWidth * c)
         return lon,lat
 
-    def plot_sites_location(self,lon_list,lat_list,background_tif,text_list=None,colorlist=None,isshow=True):
-        pix_list = self.lon_lat_to_pix(lon_list,lat_list)
+    def plot_sites_location(self,lon_list,lat_list,background_tif=None,inshp=None,out_background_tif=None,pixel_size=None,text_list=None,colorlist=None,isshow=True):
+        pix_list = self.lon_lat_to_pix(lon_list,lat_list,isInt=False)
         lon_list = []
         lat_list = []
         for lon,lat in pix_list:
             lon_list.append(lon)
             lat_list.append(lat)
-        self.plot_back_ground_arr(background_tif)
+        if background_tif:
+            self.plot_back_ground_arr(background_tif)
+        if inshp:
+            if out_background_tif == None:
+                raise 'please set out_background_tif path'
+            if pixel_size == None:
+                raise 'please set pixel_size (e.g. 0.5, unit: deg)'
+            if os.path.isfile(out_background_tif):
+                print(out_background_tif,'available')
+                self.plot_back_ground_arr(out_background_tif)
+            else:
+                print(out_background_tif,'generating...')
+                background_tif = ToRaster().shp_to_raster(inshp,out_background_tif,pixel_size=pixel_size,ndv=255)
+                ToRaster().unify_raster(background_tif,background_tif,GDT_Byte=True)
+                print('done')
+                self.plot_back_ground_arr(background_tif)
+
         if colorlist:
             plt.scatter(lat_list,lon_list,c=colorlist,cmap='jet')
             plt.colorbar()
@@ -2164,6 +2181,12 @@ class ToRaster:
         del raster
         return array, originX, originY, pixelWidth, pixelHeight
 
+    def get_ndv(self, rasterfn):
+        raster = gdal.Open(rasterfn)
+        NDV = raster.GetRasterBand(1).GetNoDataValue()
+        del raster
+        return NDV
+
     def array2raster_GDT_Byte(self, newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array):
         cols = array.shape[1]
         rows = array.shape[0]
@@ -2266,8 +2289,9 @@ class ToRaster:
             xmin, xmax, ymin, ymax = shp_layer.GetExtent()
         ds = gdal.Rasterize(output_raster, in_shp, xRes=pixel_size, yRes=pixel_size,
                             burnValues=1, noData=ndv, outputBounds=[xmin, ymin, xmax, ymax],
-                            outputType=gdal.GDT_Float32)
+                            outputType=gdal.GDT_Byte)
         ds = None
+        return output_raster
 
     def clip_array(self,in_raster,out_raster,in_shp):
         in_array, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
@@ -2322,6 +2346,66 @@ class ToRaster:
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
+    def unify_raster(self, in_tif, out_tif, ndv=-999999,GDT_Byte=False):
+        '''
+        Unify raster to the extend of global (-180 180 90 -90)
+        '''
+        if GDT_Byte:
+            insert_value = 255
+        else:
+            insert_value = ndv
+        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(in_tif)
+        # insert values to row
+        top_line_num = abs((90. - originY) / pixelHeight)
+        bottom_line_num = abs((90. + originY + pixelHeight * len(array)) / pixelHeight)
+        top_line_num = int(round(top_line_num, 0))
+        bottom_line_num = int(round(bottom_line_num, 0))
+        nan_array_insert = np.ones_like(array[0]) * insert_value
+        top_array_insert = []
+        for i in range(top_line_num):
+            top_array_insert.append(nan_array_insert)
+        bottom_array_insert = []
+        for i in range(bottom_line_num):
+            bottom_array_insert.append(nan_array_insert)
+        bottom_array_insert = np.array(bottom_array_insert)
+        if len(top_array_insert) != 0:
+            arr_temp = np.insert(array, obj=0, values=top_array_insert, axis=0)
+        else:
+            arr_temp = array
+        if len(bottom_array_insert) != 0:
+            array_unify_top_bottom = np.vstack((arr_temp, bottom_array_insert))
+        else:
+            array_unify_top_bottom = arr_temp
+
+        # insert values to column
+        left_line_num = abs((-180. - originX) / pixelWidth)
+        right_line_num = abs((180. - (originX + pixelWidth * len(array[0]))) / pixelWidth)
+        left_line_num = int(round(left_line_num, 0))
+        right_line_num = int(round(right_line_num, 0))
+        left_array_insert = []
+        right_array_insert = []
+        for i in range(left_line_num):
+            left_array_insert.append(insert_value)
+        for i in range(right_line_num):
+            right_array_insert.append(insert_value)
+
+        array_unify_left_right = []
+        for i in array_unify_top_bottom:
+            if len(left_array_insert) != 0:
+                arr_temp = np.insert(i, obj=0, values=left_array_insert, axis=0)
+            else:
+                arr_temp = i
+            if len(right_array_insert) != 0:
+                array_temp1 = np.hstack((arr_temp, right_array_insert))
+            else:
+                array_temp1 = arr_temp
+            array_unify_left_right.append(array_temp1)
+        array_unify_left_right = np.array(array_unify_left_right)
+        newRasterfn = out_tif
+        if GDT_Byte:
+            self.array2raster_GDT_Byte(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right)
+        else:
+            self.array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
 def sleep(t=1):
     time.sleep(t)
