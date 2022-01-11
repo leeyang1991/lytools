@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='lytools',
-    version='0.0.18',
+    version='0.0.19',
     author='Yang Lee',
     author_email='leeyang1991@gmail.com',
     packages=['lytools'],

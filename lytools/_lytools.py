@@ -590,9 +590,9 @@ class Tools:
         '''
         :param dic:
         {
-        key1:{col1:val1, col2:val2},
-        key2:{col1:val1, col2:val2},
-        key3:{col1:val1, col2:val2},
+        row1:{col1:val1, col2:val2},
+        row2:{col1:val1, col2:val2},
+        row3:{col1:val1, col2:val2},
         }
         :param key_col_str: define a Dataframe column to store keys of dict
         :return: Dataframe
@@ -647,6 +647,39 @@ class Tools:
         df = df[columns]
         return df
 
+    def spatial_dics_to_df(self,spatial_dic_all):
+        unique_keys = []
+        for var_name in spatial_dic_all:
+            dic_i = spatial_dic_all[var_name]
+            for key in dic_i:
+                unique_keys.append(key)
+        unique_keys = list(set(unique_keys))
+        unique_keys.sort()
+        dic_all_transform = {}
+        for key in unique_keys:
+            dic_all_transform[key] = {}
+        var_name_list = []
+        for var_name in spatial_dic_all:
+            var_name_list.append(var_name)
+            dic_i = spatial_dic_all[var_name]
+            for key in dic_i:
+                val = dic_i[key]
+                dic_all_transform[key].update({var_name: val})
+        df = self.dic_to_df(dic_all_transform, 'pix')
+        df = df.dropna(how='all',subset=var_name_list)
+        return df
+
+    def add_dic_to_df(self,df,dic,key_name):
+        val_list = []
+        for i,row in df.iterrows():
+            pix = row['pix']
+            if not pix in dic:
+                val = None
+            else:
+                val = dic[pix]
+            val_list.append(val)
+        df[key_name] = val_list
+
     def df_to_dic(self,df,key_str='__key__'):
         '''
         :param df: Dataframe
@@ -691,6 +724,20 @@ class Tools:
             half_time_stamps.append(tt)
         return half_time_stamps
 
+    def convert_val_to_time_series_obj(self,data,time_stamp_list,name='value'):
+        index = pd.DatetimeIndex(time_stamp_list)
+        time_series = pd.Series(data=data, index=index, name=name)
+        return time_series
+
+    def drop_n_std(self,vals,n=1):
+        vals = np.array(vals)
+        mean = np.nanmean(vals)
+        std = np.nanstd(vals)
+        up = mean + n * std
+        down = mean - n * std
+        vals[vals>up] = np.nan
+        vals[vals<down] = np.nan
+        return vals
 
 class SMOOTH:
     '''
