@@ -602,6 +602,8 @@ class Tools:
         index = []
         for key in dic:
             vals = dic[key]
+            if len(vals) == 0:
+                continue
             vals_list = []
             col_list = []
             vals_list.append(key)
@@ -669,7 +671,7 @@ class Tools:
         df = df.dropna(how='all',subset=var_name_list)
         return df
 
-    def add_dic_to_df(self,df,dic,key_name):
+    def add_spatial_dic_to_df(self,df,dic,key_name):
         val_list = []
         for i,row in df.iterrows():
             pix = row['pix']
@@ -679,6 +681,7 @@ class Tools:
                 val = dic[pix]
             val_list.append(val)
         df[key_name] = val_list
+        return df
 
     def df_to_dic(self,df,key_str='__key__'):
         '''
