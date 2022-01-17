@@ -600,6 +600,13 @@ class Tools:
         data = []
         columns = []
         index = []
+        all_cols = []
+        for key in dic:
+            vals = dic[key]
+            for col in vals:
+                all_cols.append(col)
+        all_cols = list(set(all_cols))
+        all_cols.sort()
         for key in dic:
             vals = dic[key]
             if len(vals) == 0:
@@ -608,8 +615,11 @@ class Tools:
             col_list = []
             vals_list.append(key)
             col_list.append(key_col_str)
-            for col in vals:
-                val = vals[col]
+            for col in all_cols:
+                if not col in vals:
+                    val = np.nan
+                else:
+                    val = vals[col]
                 vals_list.append(val)
                 col_list.append(col)
             data.append(vals_list)
