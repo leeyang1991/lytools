@@ -703,6 +703,8 @@ class Tools:
         dic = {}
         for i, row in df.iterrows():
             key = row[key_str]
+            if key in dic:
+                raise UserWarning(f'"{key_str}" is not unique\ni.e. "{key}" is not unique')
             dic_i = {}
             for col in columns:
                 val = row[col]
@@ -751,6 +753,41 @@ class Tools:
         vals[vals>up] = np.nan
         vals[vals<down] = np.nan
         return vals
+
+
+    def monthly_vals_to_annual_val(self,monthly_vals,grow_season=None):
+        '''
+        from
+        [1,2,3....,46,47,48]
+        to
+        ([1,2,...11,12]
+        [13,14,...23,24]
+        .
+        .
+        [37,38,...47,48])
+        to
+        [1,2,3,4]
+        :param monthly_vals:
+        :param grow_season: default is 1-12
+        :return:
+        '''
+        if grow_season == None:
+            grow_season = list(range(12))
+        else:
+            grow_season = np.array(grow_season,dtype=int)
+            grow_season = grow_season - 1
+            if grow_season[0] < 0:
+                raise UserWarning(f'Error grow_season:{grow_season}')
+        monthly_vals = np.array(monthly_vals)
+        monthly_vals_reshape = np.reshape(monthly_vals,(-1,12))
+        annual_mean_list = []
+        for one_year_vals in monthly_vals_reshape:
+            one_year_vals_pick = Tools().pick_vals_from_1darray(one_year_vals,grow_season)
+            annual_mean = np.nanmean(one_year_vals_pick)
+            annual_mean_list.append(annual_mean)
+        annual_mean_list = np.array(annual_mean_list)
+
+        return annual_mean_list
 
 class SMOOTH:
     '''
@@ -1908,7 +1945,7 @@ class Pre_Process:
                 if f.endswith('.tif'):
                     if f.split('.')[0] == d:
                         # print(d)
-                        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(Tools().path_join(fdir, f))
+                        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(join(fdir, f))
                         array = np.array(array, dtype=np.float)
                         # print np.min(array)
                         # print type(array)
