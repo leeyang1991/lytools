@@ -120,6 +120,27 @@ class Tools:
         except:
             return dict(np.load(f).item())
 
+    def save_distributed_perpix_dic(self, dic, outdir, n=10000):
+        '''
+        :param dic:
+        :param outdir:
+        :param n: save to each file every n sample
+        :return:
+        '''
+        flag = 0
+        temp_dic = {}
+        for key in tqdm(dic, 'saving...'):
+            flag += 1
+            arr = dic[key]
+            arr = np.array(arr)
+            temp_dic[key] = arr
+            if flag % n == 0:
+                np.save(outdir + '/per_pix_dic_%03d' % (flag / n), temp_dic)
+                temp_dic = {}
+        np.save(outdir + '/per_pix_dic_%03d' % 0, temp_dic)
+
+        pass
+
     def load_df(self, f):
         df = pd.read_pickle(f)
         df = pd.DataFrame(df)
@@ -285,6 +306,32 @@ class Tools:
 
         return yi
 
+        pass
+
+    def interp_nan_climatology(self,vals):
+        vals = np.array(vals)
+        vals_reshape = np.reshape(vals,(-1,12))
+        vals_reshape_T = vals_reshape.T
+        month_mean = []
+        for m in vals_reshape_T:
+            mean = np.nanmean(m)
+            month_mean.append(mean)
+        nan_index = np.isnan(vals)
+        val_new = []
+        for i in range(len(nan_index)):
+            isnan = nan_index[i]
+            month = i % 12
+            interp_val = month_mean[month]
+            if isnan:
+                val_new.append(interp_val)
+            else:
+                val_new.append(vals[i])
+        val_new = np.array(val_new)
+        return val_new
+
+
+    def detrend_vals(self,vals):
+        return signal.detrend(vals)
         pass
 
     def detrend_dic(self, dic):
@@ -755,7 +802,7 @@ class Tools:
         return vals
 
 
-    def monthly_vals_to_annual_val(self,monthly_vals,grow_season=None):
+    def monthly_vals_to_annual_val(self,monthly_vals,grow_season=None,method='mean'):
         '''
         from
         [1,2,3....,46,47,48]
@@ -780,14 +827,21 @@ class Tools:
                 raise UserWarning(f'Error grow_season:{grow_season}')
         monthly_vals = np.array(monthly_vals)
         monthly_vals_reshape = np.reshape(monthly_vals,(-1,12))
-        annual_mean_list = []
+        annual_val_list = []
         for one_year_vals in monthly_vals_reshape:
             one_year_vals_pick = Tools().pick_vals_from_1darray(one_year_vals,grow_season)
-            annual_mean = np.nanmean(one_year_vals_pick)
-            annual_mean_list.append(annual_mean)
-        annual_mean_list = np.array(annual_mean_list)
+            if method == 'mean':
+                annual_val = np.nanmean(one_year_vals_pick)
+            elif method == 'max':
+                annual_val = np.nanmax(one_year_vals_pick)
+            elif method == 'min':
+                annual_val = np.nanmin(one_year_vals_pick)
+            else:
+                raise UserWarning(f'method:{method} error')
+            annual_val_list.append(annual_val)
+        annual_val_list = np.array(annual_val_list)
 
-        return annual_mean_list
+        return annual_val_list
 
 class SMOOTH:
     '''
@@ -2153,7 +2207,8 @@ class Pre_Process:
         MULTIPROCESS(self.kernel_cal_anomaly, params).run(process=4, process_or_thread='p',
                                                           desc='calculating anomaly...')
 
-    def clean_per_pix(self, fdir, outdir):
+    def clean_per_pix(self, fdir, outdir,mode='linear'):
+        # mode = climatology
         Tools().mk_dir(outdir)
         for f in tqdm(Tools().listdir(fdir)):
             dic = Tools().load_npy(fdir + '/' + f)
@@ -2162,7 +2217,12 @@ class Pre_Process:
                 val = dic[pix]
                 val = np.array(val, dtype=np.float)
                 val[val < -9999] = np.nan
-                new_val = Tools().interp_nan(val, kind='linear')
+                if mode == 'linear':
+                    new_val = Tools().interp_nan(val, kind='linear')
+                elif mode == 'climatology':
+                    new_val = Tools().interp_nan_climatology(val)
+                else:
+                    raise UserWarning('mode error')
                 if len(new_val) == 1:
                     continue
                 # plt.plot(val)
