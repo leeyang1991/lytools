@@ -502,6 +502,7 @@ class Tools:
             pause()
 
     def remove_np_nan(self, arr, is_relplace=False):
+        arr = np.array(arr)
         if is_relplace:
             arr = arr[~np.isnan(arr)]
         else:
@@ -733,7 +734,7 @@ class Tools:
         for i,row in df.iterrows():
             pix = row['pix']
             if not pix in dic:
-                val = None
+                val = np.nan
             else:
                 val = dic[pix]
             val_list.append(val)
@@ -1076,14 +1077,14 @@ class SMOOTH:
 
         pass
 
-    def hist_plot_smooth(self, arr, interpolate_window=5, **kwargs):
+    def hist_plot_smooth(self, arr, interpolate_window=6, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
         n1, x1, patch = plt.hist(arr, weights=weights, **kwargs)
         density1 = stats.gaussian_kde(arr)
         y1 = density1(x1)
         coe = max(n1) / max(y1)
         y1 = y1 * coe
-        x1, y1 = self.smooth_interpolate(x1, y1, interpolate_window)
+        y1 = self.smooth_convolve(y1, window_len=interpolate_window)
         return x1, y1
 
         pass
@@ -1833,9 +1834,10 @@ class KDE_plot:
         a = (sy * sx / N - sxy) / (sx * sx / N - sxx)
         b = (sy - a * sx) / N
         r = -(sy * sx / N - sxy) / math.sqrt((sxx - sx * sx / N) * (syy - sy * sy / N))
-        return a, b, r
+        r, p = stats.pearsonr(x, y)
+        return a, b, r, p
 
-    def plot_fit_line(self, a, b, r, X, ax=None, title='', is_label=True, is_formula=True, line_color='k', **argvs):
+    def plot_fit_line(self, a, b, r, p, X, ax=None, title='', is_label=True, is_formula=True, line_color='k', **argvs):
         '''
         画拟合直线 y=ax+b
         画散点图 X,Y
@@ -1856,7 +1858,7 @@ class KDE_plot:
         c = line_color
         if is_label == True:
             if is_formula == True:
-                label = 'y={:0.2f}x+{:0.2f}\nr={:0.2f}'.format(a, b, r)
+                label = 'y={:0.2f}x+{:0.2f}\nr={:0.2f}\np={:0.2f}'.format(a, b, r, p)
             else:
                 label = 'r={:0.2f}'.format(r)
         else:
