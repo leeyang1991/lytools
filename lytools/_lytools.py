@@ -844,6 +844,21 @@ class Tools:
 
         return annual_val_list
 
+    def monthly_vals_to_date_dic(self, monthly_val, start_year, end_year):
+        date_list = []
+        for y in range(start_year, end_year + 1):
+            for m in range(1, 13):
+                date = f'{y}{m:02d}'
+                date_list.append(date)
+        len_vals = len(monthly_val)
+        len_date_list = len(date_list)
+        if not len_vals == len_date_list:
+            raise UserWarning('Date list is not matching value list')
+        dic = dict(zip(date_list, monthly_val))
+
+        return dic
+
+
 class SMOOTH:
     '''
     一些平滑算法
@@ -1982,7 +1997,8 @@ class Pre_Process:
 
         pass
 
-    def data_transform(self, fdir, outdir):
+    def data_transform(self, fdir, outdir, n=10000):
+        n = int(n)
         # 不可并行，内存不足
         Tools().mk_dir(outdir)
         # 将空间图转换为数组
@@ -2039,13 +2055,14 @@ class Pre_Process:
             arr = void_dic[key]
             arr = np.array(arr)
             temp_dic[key] = arr
-            if flag % 10000 == 0:
+            if flag % n == 0:
                 # print('\nsaving %02d' % (flag / 10000)+'\n')
-                np.save(outdir + '/per_pix_dic_%03d' % (flag / 10000), temp_dic)
+                np.save(outdir + '/per_pix_dic_%03d' % (flag / n), temp_dic)
                 temp_dic = {}
         np.save(outdir + '/per_pix_dic_%03d' % 0, temp_dic)
 
-    def data_transform_with_date_list(self, fdir, outdir, date_list):
+    def data_transform_with_date_list(self, fdir, outdir, date_list, n=10000):
+        n = int(n)
         # 不可并行，内存不足
         Tools().mk_dir(outdir)
         outdir = outdir + '/'
@@ -2097,9 +2114,9 @@ class Pre_Process:
             arr = void_dic[key]
             arr = np.array(arr)
             temp_dic[key] = arr
-            if flag % 10000 == 0:
+            if flag % n == 0:
                 # print('\nsaving %02d' % (flag / 10000)+'\n')
-                np.save(outdir + 'per_pix_dic_%03d' % (flag / 10000), temp_dic)
+                np.save(outdir + 'per_pix_dic_%03d' % (flag / n), temp_dic)
                 temp_dic = {}
         np.save(outdir + 'per_pix_dic_%03d' % 0, temp_dic)
 
@@ -2276,7 +2293,7 @@ class Pre_Process:
             DIC_and_TIF(tif_template=tif_template).arr_to_tif(arr,outf)
 
 
-class Plot_line:
+class Plot:
     def __init__(self):
 
         pass
@@ -2312,6 +2329,29 @@ class Plot_line:
         for i in range(color_gradient_n - 1):
             plt.fill_between(x, bottom[i], top[i], alpha=alpha_range[i], zorder=-99,
                              color=c, edgecolor=None, **kwargs)
+        pass
+
+    def plot_line_with_error_bar(self,x, y, yerr,c=None,alpha=0.2, **kwargs):
+
+        x = np.array(x)
+        y = np.array(y)
+        yerr = np.array(yerr)
+        y1 = y + yerr
+        y2 = y - yerr
+        plt.fill_between(x, y1, y2,zorder=-99,
+                             color=c, edgecolor=None,alpha=0.2, **kwargs)
+
+    def plot_hist_smooth(self,arr,interpolate_window=5,**kwargs):
+        weights = np.ones_like(arr) / float(len(arr))
+
+        n1, x1, patch = plt.hist(arr,weights=weights,**kwargs)
+        density1 = stats.gaussian_kde(arr)
+        y1 = density1(x1)
+        coe = max(n1) / max(y1)
+        y1 = y1 * coe
+        x1, y1 = SMOOTH().smooth_interpolate(x1, y1, interpolate_window)
+        return x1,y1
+
         pass
 
 
