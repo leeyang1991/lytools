@@ -2279,7 +2279,7 @@ class Pre_Process:
             Tools().save_npy(dic_detrend, outf)
         pass
 
-    def compose_tif_list(self,flist,outf,less_than=-9999):
+    def compose_tif_list(self,flist,outf,less_than=-9999,method='mean'):
         # less_than -9999, mask as np.nan
         tif_template = flist[0]
         void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
@@ -2297,9 +2297,91 @@ class Pre_Process:
             vals = void_dic[pix]
             vals = np.array(vals)
             vals[vals<less_than] = np.nan
-            mean = np.nanmean(vals)
-            spatial_dic[pix] = mean
+            if method == 'mean':
+                compose_val = np.nanmean(vals)
+            elif method == 'max':
+                compose_val = np.nanmax(vals)
+            elif method == 'sum':
+                compose_val = np.nansum(vals)
+            else:
+                raise UserWarning(f'{method} is invalid, should be "mean" "max" or "sum"')
+            spatial_dic[pix] = compose_val
         DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic,outf)
+
+
+    def get_year_month_day(self,fname,date_fmt='yyyymmdd'):
+        try:
+            if date_fmt == 'yyyymmdd':
+                fname_split = fname.split('.')
+                if not len(fname_split) == 2:
+                    raise
+                date = fname_split[0]
+                if not len(date) == 8:
+                    raise
+                date_int = int(date)
+                y = date[:4]
+                m = date[4:6]
+                d = date[6:]
+                y = int(y)
+                m = int(m)
+                d = int(d)
+                date_obj = datetime.datetime(y,m,d)  # check date availability
+                return y,m,d
+            elif date_fmt == 'doy':
+                fname_split = fname.split('.')
+                if not len(fname_split) == 2:
+                    raise
+                date = fname_split[0]
+                if not len(date) == 7:
+                    raise
+                y = date[:4]
+                doy = date[4:]
+                doy = int(doy)
+                date_base = datetime.datetime(int(y),1,1)
+                time_delta = datetime.timedelta(doy-1)
+                date_obj = date_base + time_delta
+                y = date_obj.year
+                m = date_obj.month
+                d = date_obj.day
+                return y,m,d
+        except:
+            if date_fmt == 'yyyymmdd':
+                raise UserWarning(f'------\nfname must be yyyymmdd.tif e.g. 19820101.tif\nplease check your fname "{fname}"')
+            elif date_fmt == 'doy':
+                raise UserWarning(f'------\nfname must be yyyyddd.tif e.g. 1982001.tif\nplease check your fname "{fname}"')
+
+
+    def monthly_compose(self,indir,outdir,date_fmt='yyyymmdd',method='mean'):
+        '''
+        :param method: "mean", "max" or "sum"
+        :param date_fmt: 'yyyymmdd' or 'doy'
+        :return:
+        '''
+        Tools().mk_dir(outdir)
+        year_list = []
+        month_list = []
+        for f in Tools().listdir(indir):
+            y,m,d = self.get_year_month_day(f,date_fmt=date_fmt)
+            year_list.append(y)
+            month_list.append(m)
+        year_list = Tools().drop_repeat_val_from_list(year_list)
+        month_list = Tools().drop_repeat_val_from_list(month_list)
+        compose_path_dic = {}
+        for y in year_list:
+            for m in month_list:
+                date = (y,m)
+                compose_path_dic[date] = []
+        for f in Tools().listdir(indir):
+            y, m, d = self.get_year_month_day(f, date_fmt=date_fmt)
+            date = (y, m)
+            compose_path_dic[date].append(join(indir,f))
+        for date in compose_path_dic:
+            flist = compose_path_dic[date]
+            y,m = date
+            print(f'{y}{m:02d}')
+            outfname = f'{y}{m:02d}.tif'
+            outpath = join(outdir,outfname)
+            self.compose_tif_list(flist,outpath,method=method)
 
     def time_series_dic_to_tif(self,spatial_dic,tif_template,outf_list):
         for i in tqdm(range(len(outf_list))):
