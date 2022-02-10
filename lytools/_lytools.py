@@ -64,6 +64,16 @@ class Tools:
             else:
                 os.mkdir(dir)
 
+    def mk_class_dir(self,class_name,result_root_this_script):
+        this_class_arr = join(result_root_this_script,f'arr/{class_name}/')
+        this_class_tif = join(result_root_this_script,f'tif/{class_name}/')
+        this_class_png = join(result_root_this_script,f'png/{class_name}/')
+        self.mk_dir(this_class_arr, force=True)
+        self.mk_dir(this_class_tif, force=True)
+        self.mk_dir(this_class_png, force=True)
+
+        return this_class_arr,this_class_tif,this_class_png
+
     def path_join(self,*args):
         path = os.path.join(*args)
         return path
@@ -828,15 +838,19 @@ class Tools:
                 raise UserWarning(f'Error grow_season:{grow_season}')
         monthly_vals = np.array(monthly_vals)
         monthly_vals_reshape = np.reshape(monthly_vals,(-1,12))
+        monthly_vals_reshape_T = monthly_vals_reshape.T
+        monthly_vals_reshape_T_gs = Tools().pick_vals_from_1darray(monthly_vals_reshape_T,grow_season)
+        monthly_vals_reshape_gs = monthly_vals_reshape_T_gs.T
         annual_val_list = []
-        for one_year_vals in monthly_vals_reshape:
-            one_year_vals_pick = Tools().pick_vals_from_1darray(one_year_vals,grow_season)
+        for one_year_vals in monthly_vals_reshape_gs:
             if method == 'mean':
-                annual_val = np.nanmean(one_year_vals_pick)
+                annual_val = np.nanmean(one_year_vals)
             elif method == 'max':
-                annual_val = np.nanmax(one_year_vals_pick)
+                annual_val = np.nanmax(one_year_vals)
             elif method == 'min':
-                annual_val = np.nanmin(one_year_vals_pick)
+                annual_val = np.nanmin(one_year_vals)
+            elif method == 'array':
+                annual_val = np.array(one_year_vals)
             else:
                 raise UserWarning(f'method:{method} error')
             annual_val_list.append(annual_val)
@@ -977,7 +991,13 @@ class SMOOTH:
 
         y = np.convolve(w / w.sum(), s, mode='valid')
         # return y
-        return y[(window_len // 2 - 1):-(window_len // 2)]
+        y_interpolated = y[(window_len // 2 - 1):-(window_len // 2)]
+        if len(x) == len(y_interpolated):
+            return y_interpolated
+        elif len(x) < len(y_interpolated):
+            return y_interpolated[1:]
+        else:
+            raise UserWarning('Need debug...')
 
     def smooth(self, x):
         # 后窗滤波
@@ -1959,13 +1979,13 @@ class KDE_plot:
         if is_equal:
             plt.axis('equal')
         if plot_fit_line:
-            a, b, r = self.linefit(val1, val2)
+            a, b, r, p = self.linefit(val1, val2)
             if is_plot_1_1_line:
                 plt.plot([np.min([val1, val2]), np.max([val1, val2])], [np.min([val1, val2]), np.max([val1, val2])],
                          '--', c='k')
-            self.plot_fit_line(a, b, r, val1, line_color=fit_line_c)
+            self.plot_fit_line(a, b, r, p, val1, line_color=fit_line_c)
             # plt.legend()
-            return a, b, r
+            return a, b, r, p
 
     def cmap_with_transparency(self, cmap, min_alpha=0., max_alpha=0.5):
         ncolors = 256
@@ -2349,7 +2369,7 @@ class Plot:
         y1 = density1(x1)
         coe = max(n1) / max(y1)
         y1 = y1 * coe
-        x1, y1 = SMOOTH().smooth_interpolate(x1, y1, interpolate_window)
+        y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1,y1
 
         pass
