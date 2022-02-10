@@ -171,8 +171,12 @@ class Tools:
                 df = df.head(n)
                 df.to_excel('{}.xlsx'.format(dff))
 
-    def mask_999999_arr(self, arr):
+    def mask_999999_arr(self, arr, warning=True):
+        arr = np.array(arr,dtype=float)
         arr[arr < -9999] = np.nan
+        if warning == True:
+            raise UserWarning('\33[7m' + "Fatal Bug !!!  \t  Need to change !!!  \t  Value return added" + '\33[0m')
+        return arr
 
     def lonlat_to_address(self, lon, lat):
         ak = "mziulWyNDGkBdDnFxWDTvELlMSun8Obt"  # 参照自己的应用
@@ -1275,7 +1279,7 @@ class DIC_and_TIF:
 
         arr = ToRaster().raster2array(tif)[0]
         arr = np.array(arr, dtype=float)
-        Tools().mask_999999_arr(arr)
+        arr = Tools().mask_999999_arr(arr,warning=False)
         dic = self.spatial_arr_to_dic(arr)
         return dic
 
@@ -2149,7 +2153,7 @@ class Pre_Process:
             ####### one pix #######
             vals = pix_dic[pix]
             vals = np.array(vals)
-            Tools().mask_999999_arr(vals)
+            vals = Tools().mask_999999_arr(vals,warning=False)
             # 清洗数据
             climatology_means = []
             climatology_std = []
