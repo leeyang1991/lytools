@@ -47,6 +47,7 @@ from matplotlib import pyplot as plt
 import hashlib
 from calendar import monthrange
 
+import zipfile
 
 class Tools:
     '''
@@ -345,7 +346,7 @@ class Tools:
 
 
     def detrend_vals(self,vals):
-        return signal.detrend(vals)
+        return signal.detrend(vals) + np.mean(vals)
         pass
 
     def detrend_dic(self, dic):
@@ -356,7 +357,7 @@ class Tools:
                 dic_new[key] = []
                 continue
             try:
-                vals_new = signal.detrend(vals)
+                vals_new = self.detrend_vals(vals)
             except:
                 vals_new = np.nan
                 # print(vals)
@@ -460,6 +461,18 @@ class Tools:
                 max_val = val
                 max_index = i
         return max_index
+
+    def pick_max_key_val_from_dict(self,dic):
+        key_list = []
+        val_list = []
+        for key in dic:
+            val = dic[key]
+            key_list.append(key)
+            val_list.append(val)
+
+        max_val_index = np.argmax(val_list)
+        max_key = key_list[max_val_index]
+        return max_key
 
     def point_to_shp(self, inputlist, outSHPfn):
         '''
@@ -875,6 +888,18 @@ class Tools:
         dic = dict(zip(date_list, monthly_val))
 
         return dic
+
+    def unzip(self,zipfolder,outdir):
+        # zipfolder = join(self.datadir,'zips')
+        # outdir = join(self.datadir,'unzip')
+        self.mk_dir(outdir)
+        for f in tqdm(self.listdir(zipfolder)):
+            outdir_i = join(outdir,f.replace('.zip',''))
+            self.mk_dir(outdir_i)
+            fpath = join(zipfolder,f)
+            zip_ref = zipfile.ZipFile(fpath, 'r')
+            zip_ref.extractall(outdir_i)
+            zip_ref.close()
 
 
 class SMOOTH:
