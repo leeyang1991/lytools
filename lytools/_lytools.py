@@ -346,8 +346,9 @@ class Tools:
 
 
     def detrend_vals(self,vals):
+        if True in np.isnan(vals):
+            return vals
         return signal.detrend(vals) + np.mean(vals)
-        pass
 
     def detrend_dic(self, dic):
         dic_new = {}
@@ -733,6 +734,12 @@ class Tools:
         columns.insert(0, key_col_str)
         df = df[columns]
         return df
+
+    def df_to_spatial_dic(self,df,col_name):
+        pix_list = df['pix']
+        val_list = df[col_name]
+        spatial_dic = dict(zip(pix_list,val_list))
+        return spatial_dic
 
     def spatial_dics_to_df(self,spatial_dic_all):
         unique_keys = []
@@ -2257,6 +2264,15 @@ class Pre_Process:
             pix_anomaly.append(anomaly)
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
+
+    def cal_anomaly_juping(self,vals):
+        mean = np.nanmean(vals)
+        anomaly = []
+        for i in vals:
+            new_val = i - mean
+            anomaly.append(new_val)
+        anomaly = np.array(anomaly)
+        return anomaly
 
     def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
