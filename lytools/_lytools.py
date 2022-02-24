@@ -49,6 +49,7 @@ from calendar import monthrange
 
 import zipfile
 
+
 class Tools:
     '''
     小工具
@@ -65,17 +66,17 @@ class Tools:
             else:
                 os.mkdir(dir)
 
-    def mk_class_dir(self,class_name,result_root_this_script):
-        this_class_arr = join(result_root_this_script,f'arr/{class_name}/')
-        this_class_tif = join(result_root_this_script,f'tif/{class_name}/')
-        this_class_png = join(result_root_this_script,f'png/{class_name}/')
+    def mk_class_dir(self, class_name, result_root_this_script):
+        this_class_arr = join(result_root_this_script, f'arr/{class_name}/')
+        this_class_tif = join(result_root_this_script, f'tif/{class_name}/')
+        this_class_png = join(result_root_this_script, f'png/{class_name}/')
         self.mk_dir(this_class_arr, force=True)
         self.mk_dir(this_class_tif, force=True)
         self.mk_dir(this_class_png, force=True)
 
-        return this_class_arr,this_class_tif,this_class_png
+        return this_class_arr, this_class_tif, this_class_png
 
-    def path_join(self,*args):
+    def path_join(self, *args):
         path = os.path.join(*args)
         return path
 
@@ -173,7 +174,7 @@ class Tools:
                 df.to_excel('{}.xlsx'.format(dff))
 
     def mask_999999_arr(self, arr, warning=True):
-        arr = np.array(arr,dtype=float)
+        arr = np.array(arr, dtype=float)
         arr[arr < -9999] = np.nan
         if warning == True:
             raise UserWarning('\33[7m' + "Fatal Bug !!!  \t  Need to change !!!  \t  Value return added" + '\33[0m')
@@ -323,9 +324,9 @@ class Tools:
 
         pass
 
-    def interp_nan_climatology(self,vals):
+    def interp_nan_climatology(self, vals):
         vals = np.array(vals)
-        vals_reshape = np.reshape(vals,(-1,12))
+        vals_reshape = np.reshape(vals, (-1, 12))
         vals_reshape_T = vals_reshape.T
         month_mean = []
         for m in vals_reshape_T:
@@ -344,8 +345,7 @@ class Tools:
         val_new = np.array(val_new)
         return val_new
 
-
-    def detrend_vals(self,vals):
+    def detrend_vals(self, vals):
         if True in np.isnan(vals):
             return vals
         return signal.detrend(vals) + np.mean(vals)
@@ -463,7 +463,7 @@ class Tools:
                 max_index = i
         return max_index
 
-    def pick_max_key_val_from_dict(self,dic):
+    def pick_max_key_val_from_dict(self, dic):
         key_list = []
         val_list = []
         for key in dic:
@@ -643,26 +643,24 @@ class Tools:
         var_list = tuple(var_list)
         return var_list
 
-    def normalize(self,vals,norm_max=1.,norm_min=-1.,up_limit=None,bottom_limit=None):
+    def normalize(self, vals, norm_max=1., norm_min=-1., up_limit=None, bottom_limit=None):
         vals_max = np.nanmax(vals)
         vals_min = np.nanmin(vals)
         norm_list = []
         for v in vals:
-            percentile = (v-vals_min)/(vals_max-vals_min)
+            percentile = (v - vals_min) / (vals_max - vals_min)
             norm = percentile * (norm_max - norm_min) + norm_min
             norm_list.append(norm)
         norm_list = np.array(norm_list)
         if up_limit and bottom_limit:
-            norm_list[norm_list>up_limit] = np.nan
-            norm_list[norm_list<bottom_limit] = np.nan
+            norm_list[norm_list > up_limit] = np.nan
+            norm_list[norm_list < bottom_limit] = np.nan
         return norm_list
 
-
-    def number_of_days_in_month(self,year=2019, month=2):
+    def number_of_days_in_month(self, year=2019, month=2):
         return monthrange(year, month)[1]
 
-
-    def dic_to_df(self,dic,key_col_str='__key__'):
+    def dic_to_df(self, dic, key_col_str='__key__', col_order=None):
         '''
         :param dic:
         {
@@ -676,13 +674,16 @@ class Tools:
         data = []
         columns = []
         index = []
-        all_cols = []
-        for key in dic:
-            vals = dic[key]
-            for col in vals:
-                all_cols.append(col)
-        all_cols = list(set(all_cols))
-        all_cols.sort()
+        if col_order == None:
+            all_cols = []
+            for key in dic:
+                vals = dic[key]
+                for col in vals:
+                    all_cols.append(col)
+            all_cols = list(set(all_cols))
+            all_cols.sort()
+        else:
+            all_cols = col_order
         for key in dic:
             vals = dic[key]
             if len(vals) == 0:
@@ -701,7 +702,7 @@ class Tools:
             data.append(vals_list)
             columns.append(col_list)
             index.append(key)
-        df = pd.DataFrame(data=data, columns=columns[0],index=index)
+        df = pd.DataFrame(data=data, columns=columns[0], index=index)
         return df
 
     def dic_to_df_different_columns(self, dic, key_col_str='__key__'):
@@ -735,13 +736,13 @@ class Tools:
         df = df[columns]
         return df
 
-    def df_to_spatial_dic(self,df,col_name):
+    def df_to_spatial_dic(self, df, col_name):
         pix_list = df['pix']
         val_list = df[col_name]
-        spatial_dic = dict(zip(pix_list,val_list))
+        spatial_dic = dict(zip(pix_list, val_list))
         return spatial_dic
 
-    def spatial_dics_to_df(self,spatial_dic_all):
+    def spatial_dics_to_df(self, spatial_dic_all):
         unique_keys = []
         for var_name in spatial_dic_all:
             dic_i = spatial_dic_all[var_name]
@@ -760,12 +761,12 @@ class Tools:
                 val = dic_i[key]
                 dic_all_transform[key].update({var_name: val})
         df = self.dic_to_df(dic_all_transform, 'pix')
-        df = df.dropna(how='all',subset=var_name_list)
+        df = df.dropna(how='all', subset=var_name_list)
         return df
 
-    def add_spatial_dic_to_df(self,df,dic,key_name):
+    def add_spatial_dic_to_df(self, df, dic, key_name):
         val_list = []
-        for i,row in df.iterrows():
+        for i, row in df.iterrows():
             pix = row['pix']
             if not pix in dic:
                 val = np.nan
@@ -775,7 +776,7 @@ class Tools:
         df[key_name] = val_list
         return df
 
-    def df_to_dic(self,df,key_str='__key__'):
+    def df_to_dic(self, df, key_str='__key__'):
         '''
         :param df: Dataframe
         :param key_str: Unique column name
@@ -795,7 +796,7 @@ class Tools:
         return dic
         pass
 
-    def shasum(self,fpath, isprint=True):
+    def shasum(self, fpath, isprint=True):
         fr = open(fpath, 'rb')
         content_bytes = fr.read()
         readable_hash = hashlib.sha256(content_bytes).hexdigest()
@@ -806,10 +807,10 @@ class Tools:
         return readable_hash
 
     def gen_time_stamps(self,
-                          start=datetime.datetime(2020, 1, 1),
-                          end=datetime.datetime(2020, 1, 2),
-                          delta=datetime.timedelta(hours=0.5)
-                          ):
+                        start=datetime.datetime(2020, 1, 1),
+                        end=datetime.datetime(2020, 1, 2),
+                        delta=datetime.timedelta(hours=0.5)
+                        ):
 
         def daterange_i(start_date, end_date):
             while start_date < end_date:
@@ -821,23 +822,22 @@ class Tools:
             half_time_stamps.append(tt)
         return half_time_stamps
 
-    def convert_val_to_time_series_obj(self,data,time_stamp_list,name='value'):
+    def convert_val_to_time_series_obj(self, data, time_stamp_list, name='value'):
         index = pd.DatetimeIndex(time_stamp_list)
         time_series = pd.Series(data=data, index=index, name=name)
         return time_series
 
-    def drop_n_std(self,vals,n=1):
+    def drop_n_std(self, vals, n=1):
         vals = np.array(vals)
         mean = np.nanmean(vals)
         std = np.nanstd(vals)
         up = mean + n * std
         down = mean - n * std
-        vals[vals>up] = np.nan
-        vals[vals<down] = np.nan
+        vals[vals > up] = np.nan
+        vals[vals < down] = np.nan
         return vals
 
-
-    def monthly_vals_to_annual_val(self,monthly_vals,grow_season=None,method='mean'):
+    def monthly_vals_to_annual_val(self, monthly_vals, grow_season=None, method='mean'):
         '''
         from
         [1,2,3....,46,47,48]
@@ -856,14 +856,14 @@ class Tools:
         if grow_season == None:
             grow_season = list(range(12))
         else:
-            grow_season = np.array(grow_season,dtype=int)
+            grow_season = np.array(grow_season, dtype=int)
             grow_season = grow_season - 1
             if grow_season[0] < 0:
                 raise UserWarning(f'Error grow_season:{grow_season}')
         monthly_vals = np.array(monthly_vals)
-        monthly_vals_reshape = np.reshape(monthly_vals,(-1,12))
+        monthly_vals_reshape = np.reshape(monthly_vals, (-1, 12))
         monthly_vals_reshape_T = monthly_vals_reshape.T
-        monthly_vals_reshape_T_gs = Tools().pick_vals_from_1darray(monthly_vals_reshape_T,grow_season)
+        monthly_vals_reshape_T_gs = Tools().pick_vals_from_1darray(monthly_vals_reshape_T, grow_season)
         monthly_vals_reshape_gs = monthly_vals_reshape_T_gs.T
         annual_val_list = []
         for one_year_vals in monthly_vals_reshape_gs:
@@ -896,17 +896,23 @@ class Tools:
 
         return dic
 
-    def unzip(self,zipfolder,outdir):
+    def unzip(self, zipfolder, outdir):
         # zipfolder = join(self.datadir,'zips')
         # outdir = join(self.datadir,'unzip')
         self.mk_dir(outdir)
         for f in tqdm(self.listdir(zipfolder)):
-            outdir_i = join(outdir,f.replace('.zip',''))
+            outdir_i = join(outdir, f.replace('.zip', ''))
             self.mk_dir(outdir_i)
-            fpath = join(zipfolder,f)
+            fpath = join(zipfolder, f)
             zip_ref = zipfile.ZipFile(fpath, 'r')
             zip_ref.extractall(outdir_i)
             zip_ref.close()
+
+    def intersect(self, x, y):
+        x = set(x)
+        y = set(y)
+        z = x.intersection(y)
+        return z
 
 
 class SMOOTH:
@@ -1311,7 +1317,7 @@ class DIC_and_TIF:
 
         arr = ToRaster().raster2array(tif)[0]
         arr = np.array(arr, dtype=float)
-        arr = Tools().mask_999999_arr(arr,warning=False)
+        arr = Tools().mask_999999_arr(arr, warning=False)
         dic = self.spatial_arr_to_dic(arr)
         return dic
 
@@ -1721,30 +1727,31 @@ class DIC_and_TIF:
         pix_list = tuple(pix_list)
         return pix_list
 
-    def gen_ones_background_tif(self,outtif):
+    def gen_ones_background_tif(self, outtif):
         # outtif = T.path_join(this_root,'conf','ones_background.tif')
         arr = self.void_spatial_dic_ones()
-        self.pix_dic_to_tif(arr,outtif)
+        self.pix_dic_to_tif(arr, outtif)
         pass
 
-    def gen_land_background_tif(self,shp,outtif,pix_size=0.5):
+    def gen_land_background_tif(self, shp, outtif, pix_size=0.5):
         # outtif = T.path_join(this_root,'conf','land.tif')
         # shp = T.path_join(this_root,'shp','world.shp')
-        ToRaster().shp_to_raster(shp,outtif,pix_size)
-        self.unify_raster(outtif,outtif)
+        ToRaster().shp_to_raster(shp, outtif, pix_size)
+        self.unify_raster(outtif, outtif)
         pass
 
-    def pix_to_lon_lat(self,pix):
-        r,c = pix
+    def pix_to_lon_lat(self, pix):
+        r, c = pix
         lat = self.originY + (self.pixelHeight * r)
         lon = self.originX + (self.pixelWidth * c)
-        return lon,lat
+        return lon, lat
 
-    def plot_sites_location(self,lon_list,lat_list,background_tif=None,inshp=None,out_background_tif=None,pixel_size=None,text_list=None,colorlist=None,isshow=True):
-        pix_list = self.lon_lat_to_pix(lon_list,lat_list,isInt=False)
+    def plot_sites_location(self, lon_list, lat_list, background_tif=None, inshp=None, out_background_tif=None,
+                            pixel_size=None, text_list=None, colorlist=None, isshow=True):
+        pix_list = self.lon_lat_to_pix(lon_list, lat_list, isInt=False)
         lon_list = []
         lat_list = []
-        for lon,lat in pix_list:
+        for lon, lat in pix_list:
             lon_list.append(lon)
             lat_list.append(lat)
         if background_tif:
@@ -1755,23 +1762,23 @@ class DIC_and_TIF:
             if pixel_size == None:
                 raise 'please set pixel_size (e.g. 0.5, unit: deg)'
             if os.path.isfile(out_background_tif):
-                print(out_background_tif,'available')
+                print(out_background_tif, 'available')
                 self.plot_back_ground_arr(out_background_tif)
             else:
-                print(out_background_tif,'generating...')
-                background_tif = ToRaster().shp_to_raster(inshp,out_background_tif,pixel_size=pixel_size,ndv=255)
-                ToRaster().unify_raster(background_tif,background_tif,GDT_Byte=True)
+                print(out_background_tif, 'generating...')
+                background_tif = ToRaster().shp_to_raster(inshp, out_background_tif, pixel_size=pixel_size, ndv=255)
+                ToRaster().unify_raster(background_tif, background_tif, GDT_Byte=True)
                 print('done')
                 self.plot_back_ground_arr(background_tif)
 
         if colorlist:
-            plt.scatter(lat_list,lon_list,c=colorlist,cmap='jet')
+            plt.scatter(lat_list, lon_list, c=colorlist, cmap='jet')
             plt.colorbar()
         else:
             plt.scatter(lat_list, lon_list)
             if not text_list == None:
                 for i in range(len(lon_list)):
-                    plt.text(lat_list[i], lon_list[i],text_list[i])
+                    plt.text(lat_list[i], lon_list[i], text_list[i])
         if isshow:
             plt.show()
 
@@ -2185,7 +2192,7 @@ class Pre_Process:
             ####### one pix #######
             vals = pix_dic[pix]
             vals = np.array(vals)
-            vals = Tools().mask_999999_arr(vals,warning=False)
+            vals = Tools().mask_999999_arr(vals, warning=False)
             # 清洗数据
             climatology_means = []
             climatology_std = []
@@ -2265,7 +2272,7 @@ class Pre_Process:
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
 
-    def cal_anomaly_juping(self,vals):
+    def cal_anomaly_juping(self, vals):
         mean = np.nanmean(vals)
         anomaly = []
         for i in vals:
@@ -2291,7 +2298,7 @@ class Pre_Process:
         MULTIPROCESS(self.kernel_cal_anomaly, params).run(process=4, process_or_thread='p',
                                                           desc='calculating anomaly...')
 
-    def clean_per_pix(self, fdir, outdir,mode='linear'):
+    def clean_per_pix(self, fdir, outdir, mode='linear'):
         # mode = climatology
         Tools().mk_dir(outdir)
         for f in tqdm(Tools().listdir(fdir)):
@@ -2324,24 +2331,24 @@ class Pre_Process:
             Tools().save_npy(dic_detrend, outf)
         pass
 
-    def compose_tif_list(self,flist,outf,less_than=-9999,method='mean'):
+    def compose_tif_list(self, flist, outf, less_than=-9999, method='mean'):
         # less_than -9999, mask as np.nan
         tif_template = flist[0]
         void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
-        for f in tqdm(flist,desc='transforming...'):
+        for f in tqdm(flist, desc='transforming...'):
             if not f.endswith('.tif'):
                 continue
             array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(f)
             for r in range(len(array)):
                 for c in range(len(array[0])):
-                    pix = (r,c)
+                    pix = (r, c)
                     val = array[r][c]
                     void_dic[pix].append(val)
         spatial_dic = {}
-        for pix in tqdm(void_dic,desc='calculating mean...'):
+        for pix in tqdm(void_dic, desc='calculating mean...'):
             vals = void_dic[pix]
             vals = np.array(vals)
-            vals[vals<less_than] = np.nan
+            vals[vals < less_than] = np.nan
             if method == 'mean':
                 compose_val = np.nanmean(vals)
             elif method == 'max':
@@ -2351,10 +2358,9 @@ class Pre_Process:
             else:
                 raise UserWarning(f'{method} is invalid, should be "mean" "max" or "sum"')
             spatial_dic[pix] = compose_val
-        DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic,outf)
+        DIC_and_TIF(tif_template=tif_template).pix_dic_to_tif(spatial_dic, outf)
 
-
-    def get_year_month_day(self,fname,date_fmt='yyyymmdd'):
+    def get_year_month_day(self, fname, date_fmt='yyyymmdd'):
         try:
             if date_fmt == 'yyyymmdd':
                 fname_split = fname.split('.')
@@ -2370,8 +2376,8 @@ class Pre_Process:
                 y = int(y)
                 m = int(m)
                 d = int(d)
-                date_obj = datetime.datetime(y,m,d)  # check date availability
-                return y,m,d
+                date_obj = datetime.datetime(y, m, d)  # check date availability
+                return y, m, d
             elif date_fmt == 'doy':
                 fname_split = fname.split('.')
                 if not len(fname_split) == 2:
@@ -2382,21 +2388,22 @@ class Pre_Process:
                 y = date[:4]
                 doy = date[4:]
                 doy = int(doy)
-                date_base = datetime.datetime(int(y),1,1)
-                time_delta = datetime.timedelta(doy-1)
+                date_base = datetime.datetime(int(y), 1, 1)
+                time_delta = datetime.timedelta(doy - 1)
                 date_obj = date_base + time_delta
                 y = date_obj.year
                 m = date_obj.month
                 d = date_obj.day
-                return y,m,d
+                return y, m, d
         except:
             if date_fmt == 'yyyymmdd':
-                raise UserWarning(f'------\nfname must be yyyymmdd.tif e.g. 19820101.tif\nplease check your fname "{fname}"')
+                raise UserWarning(
+                    f'------\nfname must be yyyymmdd.tif e.g. 19820101.tif\nplease check your fname "{fname}"')
             elif date_fmt == 'doy':
-                raise UserWarning(f'------\nfname must be yyyyddd.tif e.g. 1982001.tif\nplease check your fname "{fname}"')
+                raise UserWarning(
+                    f'------\nfname must be yyyyddd.tif e.g. 1982001.tif\nplease check your fname "{fname}"')
 
-
-    def monthly_compose(self,indir,outdir,date_fmt='yyyymmdd',method='mean'):
+    def monthly_compose(self, indir, outdir, date_fmt='yyyymmdd', method='mean'):
         '''
         :param method: "mean", "max" or "sum"
         :param date_fmt: 'yyyymmdd' or 'doy'
@@ -2406,7 +2413,7 @@ class Pre_Process:
         year_list = []
         month_list = []
         for f in Tools().listdir(indir):
-            y,m,d = self.get_year_month_day(f,date_fmt=date_fmt)
+            y, m, d = self.get_year_month_day(f, date_fmt=date_fmt)
             year_list.append(y)
             month_list.append(m)
         year_list = Tools().drop_repeat_val_from_list(year_list)
@@ -2414,21 +2421,21 @@ class Pre_Process:
         compose_path_dic = {}
         for y in year_list:
             for m in month_list:
-                date = (y,m)
+                date = (y, m)
                 compose_path_dic[date] = []
         for f in Tools().listdir(indir):
             y, m, d = self.get_year_month_day(f, date_fmt=date_fmt)
             date = (y, m)
-            compose_path_dic[date].append(join(indir,f))
+            compose_path_dic[date].append(join(indir, f))
         for date in compose_path_dic:
             flist = compose_path_dic[date]
-            y,m = date
+            y, m = date
             print(f'{y}{m:02d}')
             outfname = f'{y}{m:02d}.tif'
-            outpath = join(outdir,outfname)
-            self.compose_tif_list(flist,outpath,method=method)
+            outpath = join(outdir, outfname)
+            self.compose_tif_list(flist, outpath, method=method)
 
-    def time_series_dic_to_tif(self,spatial_dic,tif_template,outf_list):
+    def time_series_dic_to_tif(self, spatial_dic, tif_template, outf_list):
         for i in tqdm(range(len(outf_list))):
             outf = outf_list[i]
             spatial_dic_i = {}
@@ -2437,7 +2444,7 @@ class Pre_Process:
                 val = vals[i]
                 spatial_dic_i[pix] = val
             arr = DIC_and_TIF(tif_template=tif_template).pix_dic_to_spatial_arr(spatial_dic_i)
-            DIC_and_TIF(tif_template=tif_template).arr_to_tif(arr,outf)
+            DIC_and_TIF(tif_template=tif_template).arr_to_tif(arr, outf)
 
 
 class Plot:
@@ -2478,26 +2485,26 @@ class Plot:
                              color=c, edgecolor=None, **kwargs)
         pass
 
-    def plot_line_with_error_bar(self,x, y, yerr,c=None,alpha=0.2, **kwargs):
+    def plot_line_with_error_bar(self, x, y, yerr, c=None, alpha=0.2, **kwargs):
 
         x = np.array(x)
         y = np.array(y)
         yerr = np.array(yerr)
         y1 = y + yerr
         y2 = y - yerr
-        plt.fill_between(x, y1, y2,zorder=-99,
-                             color=c, edgecolor=None,alpha=0.2, **kwargs)
+        plt.fill_between(x, y1, y2, zorder=-99,
+                         color=c, edgecolor=None, alpha=0.2, **kwargs)
 
-    def plot_hist_smooth(self,arr,interpolate_window=5,**kwargs):
+    def plot_hist_smooth(self, arr, interpolate_window=5, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
 
-        n1, x1, patch = plt.hist(arr,weights=weights,**kwargs)
+        n1, x1, patch = plt.hist(arr, weights=weights, **kwargs)
         density1 = stats.gaussian_kde(arr)
         y1 = density1(x1)
         coe = max(n1) / max(y1)
         y1 = y1 * coe
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
-        return x1,y1
+        return x1, y1
 
         pass
 
@@ -2639,7 +2646,7 @@ class ToRaster:
         ds = None
         return output_raster
 
-    def clip_array(self,in_raster,out_raster,in_shp):
+    def clip_array(self, in_raster, out_raster, in_shp):
         in_array, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
         input_shp = ogr.Open(in_shp)
         shp_layer = input_shp.GetLayer()
@@ -2653,13 +2660,13 @@ class ToRaster:
         originY_str = originY_str.encode('utf-8')
         pixelWidth_str = pixelWidth_str.encode('utf-8')
         pixelHeight_str = pixelHeight_str.encode('utf-8')
-        m1 = hashlib.md5(originX_str + originY_str+pixelWidth_str+ pixelHeight_str+ in_shp_encode)
+        m1 = hashlib.md5(originX_str + originY_str + pixelWidth_str + pixelHeight_str + in_shp_encode)
         md5filename = m1.hexdigest() + '.tif'
         temp_dir = 'temporary_directory/'
         Tools().mk_dir(temp_dir)
-        temp_out_raster = temp_dir+md5filename
+        temp_out_raster = temp_dir + md5filename
         if not os.path.isfile(temp_out_raster):
-            self.shp_to_raster(in_shp, temp_out_raster, pixelWidth,in_raster_template=in_raster,)
+            self.shp_to_raster(in_shp, temp_out_raster, pixelWidth, in_raster_template=in_raster, )
         rastered_mask_array = self.raster2array(temp_out_raster)[0]
         in_mask_arr = np.array(rastered_mask_array)
         in_mask_arr[in_mask_arr < -9999] = False
@@ -2667,32 +2674,31 @@ class ToRaster:
         in_array[~in_mask_arr] = np.nan
         lon_list = [xmin, xmax]
         lat_list = [ymin, ymax]
-        pix_list = DIC_and_TIF(tif_template=in_raster).lon_lat_to_pix(lon_list,lat_list)
-        pix1,pix2 = pix_list
+        pix_list = DIC_and_TIF(tif_template=in_raster).lon_lat_to_pix(lon_list, lat_list)
+        pix1, pix2 = pix_list
         in_array = in_array[pix2[0]:pix1[0]]
         in_array = in_array.T
         in_array = in_array[pix1[1]:pix2[1]]
         in_array = in_array.T
-        longitude_start, latitude_start = xmin,ymax
-        self.array2raster(out_raster,longitude_start, latitude_start, pixelWidth, pixelHeight,in_array)
+        longitude_start, latitude_start = xmin, ymax
+        self.array2raster(out_raster, longitude_start, latitude_start, pixelWidth, pixelHeight, in_array)
 
-
-    def mask_array(self,in_raster,out_raster,in_mask_raster):
-        in_arr,originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
-        in_mask_arr,originX, originY, pixelWidth, pixelHeight = self.raster2array(in_mask_raster)
-        in_arr = np.array(in_arr,dtype=float)
+    def mask_array(self, in_raster, out_raster, in_mask_raster):
+        in_arr, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
+        in_mask_arr, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_mask_raster)
+        in_arr = np.array(in_arr, dtype=float)
         in_mask_arr = np.array(in_mask_arr)
-        in_mask_arr[in_mask_arr<-9999]=False
-        in_mask_arr = np.array(in_mask_arr,dtype=bool)
+        in_mask_arr[in_mask_arr < -9999] = False
+        in_mask_arr = np.array(in_mask_arr, dtype=bool)
         in_arr[~in_mask_arr] = np.nan
         longitude_start, latitude_start, pixelWidth, pixelHeight = originX, originY, pixelWidth, pixelHeight
-        self.array2raster(out_raster,longitude_start, latitude_start, pixelWidth, pixelHeight,in_arr)
+        self.array2raster(out_raster, longitude_start, latitude_start, pixelWidth, pixelHeight, in_arr)
 
     def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
-    def unify_raster(self, in_tif, out_tif, ndv=-999999,GDT_Byte=False):
+    def unify_raster(self, in_tif, out_tif, ndv=-999999, GDT_Byte=False):
         '''
         Unify raster to the extend of global (-180 180 90 -90)
         '''
@@ -2752,6 +2758,7 @@ class ToRaster:
             self.array2raster_GDT_Byte(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right)
         else:
             self.array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
+
 
 def sleep(t=1):
     time.sleep(t)
