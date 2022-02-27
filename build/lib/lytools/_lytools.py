@@ -796,6 +796,34 @@ class Tools:
         return dic
         pass
 
+    def add_pix_to_df_from_lon_lat(self,df):
+        lon_list = []
+        lat_list = []
+        for i, row in tqdm(df.iterrows(), total=len(df)):
+            lon = row['lon']
+            lat = row['lat']
+            lon = float(lon)
+            lat = float(lat)
+            lon_list.append(lon)
+            lat_list.append(lat)
+        pix_list = DIC_and_TIF().lon_lat_to_pix(lon_list, lat_list)
+        df['pix'] = pix_list
+        return df
+
+    def rename_dataframe_columns(self, df,old_name,new_name):
+        new_name_dic = {
+            old_name: new_name,
+        }
+        df = pd.DataFrame(df)
+        df = df.rename(columns=new_name_dic)
+        return df
+
+    def change_df_col_dtype(self,df,col_name,dtype):
+        series = df[col_name].tolist()
+        series_dtype = np.array(series,dtype)
+        df[col_name] = series_dtype
+        return df
+
     def shasum(self, fpath, isprint=True):
         fr = open(fpath, 'rb')
         content_bytes = fr.read()
