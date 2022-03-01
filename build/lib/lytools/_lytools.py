@@ -475,6 +475,12 @@ class Tools:
         max_key = key_list[max_val_index]
         return max_key
 
+    def pick_max_n_index(self,vals,n):
+        argsort = np.argsort(vals)
+        max_n_index = argsort[::-1][:n]
+        max_n_val = self.pick_vals_from_1darray(vals,max_n_index)
+        return max_n_index,max_n_val
+
     def point_to_shp(self, inputlist, outSHPfn):
         '''
 
@@ -796,7 +802,7 @@ class Tools:
         return dic
         pass
 
-    def add_pix_to_df_from_lon_lat(self,df):
+    def add_pix_to_df_from_lon_lat(self, df):
         lon_list = []
         lat_list = []
         for i, row in tqdm(df.iterrows(), total=len(df)):
@@ -810,7 +816,7 @@ class Tools:
         df['pix'] = pix_list
         return df
 
-    def rename_dataframe_columns(self, df,old_name,new_name):
+    def rename_dataframe_columns(self, df, old_name, new_name):
         new_name_dic = {
             old_name: new_name,
         }
@@ -818,9 +824,9 @@ class Tools:
         df = df.rename(columns=new_name_dic)
         return df
 
-    def change_df_col_dtype(self,df,col_name,dtype):
+    def change_df_col_dtype(self, df, col_name, dtype):
         series = df[col_name].tolist()
-        series_dtype = np.array(series,dtype)
+        series_dtype = np.array(series, dtype)
         df[col_name] = series_dtype
         return df
 
@@ -895,16 +901,21 @@ class Tools:
         monthly_vals_reshape_gs = monthly_vals_reshape_T_gs.T
         annual_val_list = []
         for one_year_vals in monthly_vals_reshape_gs:
-            if method == 'mean':
-                annual_val = np.nanmean(one_year_vals)
-            elif method == 'max':
-                annual_val = np.nanmax(one_year_vals)
-            elif method == 'min':
-                annual_val = np.nanmin(one_year_vals)
-            elif method == 'array':
-                annual_val = np.array(one_year_vals)
+            if self.is_all_nan(one_year_vals):
+                annual_val = np.nan
             else:
-                raise UserWarning(f'method:{method} error')
+                if method == 'mean':
+                    annual_val = np.nanmean(one_year_vals)
+                elif method == 'max':
+                    annual_val = np.nanmax(one_year_vals)
+                elif method == 'min':
+                    annual_val = np.nanmin(one_year_vals)
+                elif method == 'array':
+                    annual_val = np.array(one_year_vals)
+                elif method == 'sum':
+                    annual_val = np.nansum(one_year_vals)
+                else:
+                    raise UserWarning(f'method:{method} error')
             annual_val_list.append(annual_val)
         annual_val_list = np.array(annual_val_list)
 
@@ -942,6 +953,20 @@ class Tools:
         z = x.intersection(y)
         return z
 
+    def is_all_nan(self,vals):
+        vals = np.array(vals)
+        isnan_list = np.isnan(vals)
+        isnan_list_set = set(isnan_list)
+        isnan_list_set = list(isnan_list_set)
+        if len(isnan_list_set) == 1:
+            if isnan_list_set[0] == True:
+                return True
+            else:
+                return False
+            pass
+        else:
+            return False
+        pass
 
 class SMOOTH:
     '''
@@ -2353,9 +2378,9 @@ class Pre_Process:
     def detrend(self, fdir, outdir):
         Tools().mk_dir(outdir)
         for f in tqdm(Tools().listdir(fdir), desc='detrend...'):
-            dic = Tools().load_npy(fdir + f)
+            dic = Tools().load_npy(join(fdir,f))
             dic_detrend = Tools().detrend_dic(dic)
-            outf = outdir + f
+            outf = join(outdir,f)
             Tools().save_npy(dic_detrend, outf)
         pass
 
