@@ -745,8 +745,50 @@ class Tools:
     def df_to_spatial_dic(self, df, col_name):
         pix_list = df['pix']
         val_list = df[col_name]
-        spatial_dic = dict(zip(pix_list, val_list))
-        return spatial_dic
+        set_pix_list = set(pix_list)
+        if len(val_list) == len(set_pix_list):
+            spatial_dic = dict(zip(pix_list, val_list))
+            return spatial_dic
+        else:
+            raise UserWarning(f'"pix" is not unique')
+
+    def is_unique_key_in_df(self,df,unique_key):
+        len_df = len(df)
+        unique_key_list = self.get_df_unique_val_list(df,unique_key)
+        len_unique_key = len(unique_key_list)
+        if len_df == len_unique_key:
+            return True
+        else:
+            return False
+
+    def add_dic_to_df(self, df, dic, unique_key):
+        if not self.is_unique_key_in_df(df,unique_key):
+            raise UserWarning(f'{unique_key} is not a unique key')
+        all_val_list = []
+        all_col_list = []
+        for i, row in df.iterrows():
+            unique_id = row[unique_key]
+            if not unique_id in dic:
+                dic_i = np.nan
+            else:
+                dic_i = dic[unique_id]
+            col_list = []
+            val_list = []
+            for col in dic_i:
+                val = dic_i[col]
+                col_list.append(col)
+                val_list.append(val)
+            all_val_list.append(val_list)
+            all_col_list.append(col_list)
+            # val_list.append(val)
+        all_val_list = np.array(all_val_list)
+        all_col_list = np.array(all_col_list)
+        all_val_list_T = all_val_list.T
+        all_col_list_T = all_col_list.T
+        for i in range(len(all_col_list_T)):
+            df[all_col_list_T[i][0]] = all_val_list_T[i]
+        return df
+
 
     def spatial_dics_to_df(self, spatial_dic_all):
         unique_keys = []
@@ -886,6 +928,7 @@ class Tools:
         :param monthly_vals:
         :param grow_season: default is 1-12
         :return:
+        todo: add axis to np.nanmean()
         '''
         if grow_season == None:
             grow_season = list(range(12))
