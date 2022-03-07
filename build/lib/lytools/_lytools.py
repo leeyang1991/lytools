@@ -476,6 +476,8 @@ class Tools:
         return max_key
 
     def pick_max_n_index(self,vals,n):
+        vals = np.array(vals)
+        vals[np.isnan(vals)] = -np.inf
         argsort = np.argsort(vals)
         max_n_index = argsort[::-1][:n]
         max_n_val = self.pick_vals_from_1darray(vals,max_n_index)
@@ -767,11 +769,11 @@ class Tools:
         all_val_list = []
         all_col_list = []
         for i, row in df.iterrows():
-            unique_id = row[unique_key]
-            if not unique_id in dic:
+            unique_key_ = row[unique_key]
+            if not unique_key_ in dic:
                 dic_i = np.nan
             else:
-                dic_i = dic[unique_id]
+                dic_i = dic[unique_key_]
             col_list = []
             val_list = []
             for col in dic_i:
@@ -1010,6 +1012,20 @@ class Tools:
         else:
             return False
         pass
+
+    def reverse_dic(self,dic):
+        items = dic.items()
+        df = pd.DataFrame.from_dict(data=items)
+        unique_vals = self.get_df_unique_val_list(df,1)
+        dic_reverse = {}
+        for v in unique_vals:
+            dic_reverse[v] = []
+        for key in dic:
+            val = dic[key]
+            dic_reverse[val].append(key)
+        return dic_reverse
+
+
 
 class SMOOTH:
     '''
