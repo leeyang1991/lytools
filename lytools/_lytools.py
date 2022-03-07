@@ -826,6 +826,17 @@ class Tools:
         df[key_name] = val_list
         return df
 
+    def join_df_list(self,df,df_list,key):
+        # key must be unique
+        if len(df) == 0:
+            df = df_list[0]
+            df_list = df_list[1:]
+        if not self.is_unique_key_in_df(df,key):
+            raise UserWarning(f'{key} in not an unique key')
+        for df_i in df_list:
+            df = df.join(df_i.set_index(key), on=key)
+        return df
+
     def df_to_dic(self, df, key_str='__key__'):
         '''
         :param df: Dataframe
@@ -2386,11 +2397,8 @@ class Pre_Process:
 
     def cal_anomaly_juping(self, vals):
         mean = np.nanmean(vals)
-        anomaly = []
-        for i in vals:
-            new_val = i - mean
-            anomaly.append(new_val)
-        anomaly = np.array(anomaly)
+        vals = np.array(vals)
+        anomaly = vals - mean
         return anomaly
 
     def cal_anomaly(self, fdir, save_dir):
