@@ -606,6 +606,26 @@ class Tools:
 
         return r, p
 
+    def nan_line_fit(self, val1_list, val2_list):
+        K = KDE_plot()
+        val1_list_new = []
+        val2_list_new = []
+        for i in range(len(val1_list)):
+            val1 = val1_list[i]
+            val2 = val2_list[i]
+            if np.isnan(val1):
+                continue
+            if np.isnan(val2):
+                continue
+            val1_list_new.append(val1)
+            val2_list_new.append(val2)
+        if len(val1_list_new) <= 3:
+            a, b, r, p = np.nan, np.nan, np.nan, np.nan
+        else:
+            a, b, r, p = K.linefit(val1_list_new,val2_list_new)
+
+        return a, b, r, p
+
     def count_num(self, arr, elements):
         arr = np.array(arr)
         unique, counts = np.unique(arr, return_counts=True)
@@ -1010,6 +1030,8 @@ class Tools:
         return z
 
     def is_all_nan(self,vals):
+        if type(vals) == float:
+            return True
         vals = np.array(vals)
         isnan_list = np.isnan(vals)
         isnan_list_set = set(isnan_list)
@@ -1036,6 +1058,27 @@ class Tools:
             dic_reverse[val].append(key)
         return dic_reverse
 
+    def combine_df_columns(self,df,combine_col,new_col_name,method='mean'):
+        combined_vals_list = []
+        for i,row in tqdm(df.iterrows(),total=len(df)):
+            vals_list = []
+            for cols in combine_col:
+                vals = row[cols]
+                vals = np.array(vals)
+                vals_list.append(vals)
+            vals_list = np.array(vals_list)
+            vals_list_mean = np.nanmean(vals_list,axis=0)
+            combined_vals_list.append(vals_list_mean)
+        df[new_col_name] = combined_vals_list
+        return df
+
+    def get_vals_std_up_down(self,vals):
+        vals = np.array(vals)
+        std = np.nanstd(vals)
+        mean = np.nanmean(vals)
+        up = mean + std
+        down = mean - std
+        return up,down
 
 
 class SMOOTH:
@@ -1370,6 +1413,26 @@ class DIC_and_TIF:
             else:
                 mean = np.nanmean(vals)
             mean_spatial_dic[pix] = mean
+
+        spatial = self.pix_dic_to_spatial_arr(mean_spatial_dic)
+        spatial = np.array(spatial, dtype=float)
+        return spatial
+
+    def pix_dic_to_spatial_arr_trend(self, spatial_dic):
+
+        mean_spatial_dic = {}
+        for pix in tqdm(spatial_dic, desc='calculating spatial trend'):
+            vals = spatial_dic[pix]
+            if len(vals) == 0:
+                a = np.nan
+            else:
+                x = list(range(len(vals)))
+                y = vals
+                try:
+                    a,_,_,_ = Tools().nan_line_fit(x,y)
+                except:
+                    a = np.nan
+            mean_spatial_dic[pix] = a
 
         spatial = self.pix_dic_to_spatial_arr(mean_spatial_dic)
         spatial = np.array(spatial, dtype=float)
