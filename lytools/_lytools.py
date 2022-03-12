@@ -2830,41 +2830,46 @@ class ToRaster:
         return output_raster
 
     def clip_array(self, in_raster, out_raster, in_shp):
-        in_array, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
-        input_shp = ogr.Open(in_shp)
-        shp_layer = input_shp.GetLayer()
-        xmin, xmax, ymin, ymax = shp_layer.GetExtent()
-        in_shp_encode = in_shp.encode('utf-8')
-        originX_str = str(originX)
-        originY_str = str(originY)
-        pixelWidth_str = str(pixelWidth)
-        pixelHeight_str = str(pixelHeight)
-        originX_str = originX_str.encode('utf-8')
-        originY_str = originY_str.encode('utf-8')
-        pixelWidth_str = pixelWidth_str.encode('utf-8')
-        pixelHeight_str = pixelHeight_str.encode('utf-8')
-        m1 = hashlib.md5(originX_str + originY_str + pixelWidth_str + pixelHeight_str + in_shp_encode)
-        md5filename = m1.hexdigest() + '.tif'
-        temp_dir = 'temporary_directory/'
-        Tools().mk_dir(temp_dir)
-        temp_out_raster = temp_dir + md5filename
-        if not os.path.isfile(temp_out_raster):
-            self.shp_to_raster(in_shp, temp_out_raster, pixelWidth, in_raster_template=in_raster, )
-        rastered_mask_array = self.raster2array(temp_out_raster)[0]
-        in_mask_arr = np.array(rastered_mask_array)
-        in_mask_arr[in_mask_arr < -9999] = False
-        in_mask_arr = np.array(in_mask_arr, dtype=bool)
-        in_array[~in_mask_arr] = np.nan
-        lon_list = [xmin, xmax]
-        lat_list = [ymin, ymax]
-        pix_list = DIC_and_TIF(tif_template=in_raster).lon_lat_to_pix(lon_list, lat_list)
-        pix1, pix2 = pix_list
-        in_array = in_array[pix2[0]:pix1[0]]
-        in_array = in_array.T
-        in_array = in_array[pix1[1]:pix2[1]]
-        in_array = in_array.T
-        longitude_start, latitude_start = xmin, ymax
-        self.array2raster(out_raster, longitude_start, latitude_start, pixelWidth, pixelHeight, in_array)
+        ds = gdal.Open(in_raster)
+        ds_clip = gdal.Warp(out_raster, ds, cutlineDSName=in_shp, cropToCutline=True, dstNodata=np.nan)
+        ds_clip = None
+
+    # def clip_array(self, in_raster, out_raster, in_shp):
+    #     in_array, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
+    #     input_shp = ogr.Open(in_shp)
+    #     shp_layer = input_shp.GetLayer()
+    #     xmin, xmax, ymin, ymax = shp_layer.GetExtent()
+    #     in_shp_encode = in_shp.encode('utf-8')
+    #     originX_str = str(originX)
+    #     originY_str = str(originY)
+    #     pixelWidth_str = str(pixelWidth)
+    #     pixelHeight_str = str(pixelHeight)
+    #     originX_str = originX_str.encode('utf-8')
+    #     originY_str = originY_str.encode('utf-8')
+    #     pixelWidth_str = pixelWidth_str.encode('utf-8')
+    #     pixelHeight_str = pixelHeight_str.encode('utf-8')
+    #     m1 = hashlib.md5(originX_str + originY_str + pixelWidth_str + pixelHeight_str + in_shp_encode)
+    #     md5filename = m1.hexdigest() + '.tif'
+    #     temp_dir = 'temporary_directory/'
+    #     Tools().mk_dir(temp_dir)
+    #     temp_out_raster = temp_dir + md5filename
+    #     if not os.path.isfile(temp_out_raster):
+    #         self.shp_to_raster(in_shp, temp_out_raster, pixelWidth, in_raster_template=in_raster, )
+    #     rastered_mask_array = self.raster2array(temp_out_raster)[0]
+    #     in_mask_arr = np.array(rastered_mask_array)
+    #     in_mask_arr[in_mask_arr < -9999] = False
+    #     in_mask_arr = np.array(in_mask_arr, dtype=bool)
+    #     in_array[~in_mask_arr] = np.nan
+    #     lon_list = [xmin, xmax]
+    #     lat_list = [ymin, ymax]
+    #     pix_list = DIC_and_TIF(tif_template=in_raster).lon_lat_to_pix(lon_list, lat_list, isInt=False)
+    #     pix1, pix2 = pix_list
+    #     in_array = in_array[pix2[0]:pix1[0]]
+    #     in_array = in_array.T
+    #     in_array = in_array[pix1[1]:pix2[1]]
+    #     in_array = in_array.T
+    #     longitude_start, latitude_start = xmin, ymax
+    #     self.array2raster(out_raster, longitude_start, latitude_start, pixelWidth, pixelHeight, in_array)
 
     def mask_array(self, in_raster, out_raster, in_mask_raster):
         in_arr, originX, originY, pixelWidth, pixelHeight = self.raster2array(in_raster)
