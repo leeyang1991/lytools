@@ -1064,6 +1064,8 @@ class Tools:
             vals_list = []
             for cols in combine_col:
                 vals = row[cols]
+                if type(vals) == float:
+                    continue
                 vals = np.array(vals)
                 vals_list.append(vals)
             vals_list = np.array(vals_list)
@@ -1565,7 +1567,7 @@ class DIC_and_TIF:
 
         pass
 
-    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif):
+    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,**kwargs):
 
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
@@ -1579,7 +1581,7 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1)
+        plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1,**kwargs)
 
     def mask_ocean_dic(self):
         arr = self.arr_template
@@ -2463,6 +2465,15 @@ class Pre_Process:
         vals = np.array(vals)
         anomaly = vals - mean
         return anomaly
+
+    def cal_relative_change(self,vals):
+        relative_change_list = []
+        mean = np.nanmean(vals)
+        for v in vals:
+            relative_change = (v-mean) / v
+            relative_change_list.append(relative_change)
+        relative_change_list = np.array(relative_change_list)
+        return relative_change_list
 
     def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
