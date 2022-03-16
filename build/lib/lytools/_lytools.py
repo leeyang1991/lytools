@@ -181,13 +181,44 @@ class Tools:
         return arr
 
     def lonlat_to_address(self, lon, lat):
+        temporary_foler = 'temporary_foler/lonlat_to_address'
+        self.mk_dir(temporary_foler, force=True)
+        outf = join(temporary_foler, 'address.xlsx')
+        if not isfile(outf):
+            address = self.__lonlat_to_address(lon, lat)
+            add_dic = {
+                'lon_lat': str((lon, lat)),
+                'address': address
+            }
+            print(add_dic)
+            df = pd.DataFrame(data=add_dic, index=[0])
+            df.to_excel(outf, index=False)
+            return address
+        else:
+            df = pd.read_excel(outf, index_col=False)
+            lon_lat = str((lon, lat))
+            address_dic = self.df_to_dic(df, 'lon_lat')
+            # print(address_dic)
+            # exit()
+            if lon_lat in address_dic:
+                return address_dic[lon_lat]['address']
+            else:
+                add = self.__lonlat_to_address(lon, lat)
+                df.loc[-1] = {'lon_lat': lon_lat, 'address': add}
+                df.index = df.index + 1
+                df.to_excel(outf, index=False)
+                return add
+
+    def __lonlat_to_address(self, lon, lat):
+        print('\33[7m' + "getting address from BaiDu." + '\33[0m')
         ak = "mziulWyNDGkBdDnFxWDTvELlMSun8Obt"  # 参照自己的应用
         url = 'http://api.map.baidu.com/reverse_geocoding/v3/?ak=mziulWyNDGkBdDnFxWDTvELlMSun8Obt&output=json&coordtype=wgs84ll&location=%s,%s' % (
             lat, lon)
         content = requests.get(url).text
         dic = eval(content)
-        # for key in dic['result']:
         add = dic['result']['formatted_address']
+        if len(add) == 0:
+            return 'None'
         return add
 
     def spatial_arr_filter_n_sigma(self, spatial_arr, n=3):
@@ -1547,7 +1578,7 @@ class DIC_and_TIF:
                 void_dic[key] = 1.
         return void_dic
 
-    def plot_back_ground_arr(self, rasterized_world_tif):
+    def plot_back_ground_arr(self, rasterized_world_tif, **kwargs):
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         ndv = ToRaster().get_ndv(rasterized_world_tif)
         back_ground = []
@@ -1561,7 +1592,7 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1)
+        plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
         # return back_ground
 
