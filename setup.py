@@ -1,10 +1,12 @@
 # coding='utf-8'
 
 from setuptools import setup
-
+long_description = open('README.md').read()
 setup(
     name='lytools',
-    version='0.0.40',
+    version='0.0.41',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Yang Lee',
     author_email='leeyang1991@gmail.com',
     packages=['lytools'],

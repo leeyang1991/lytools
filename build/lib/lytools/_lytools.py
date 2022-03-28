@@ -908,6 +908,15 @@ class Tools:
         return dic
         pass
 
+    def df_to_dic_non_unique_key(self,df,non_unique_colname,unique_colname):
+        df_to_dict = {}
+        col_name_list = self.get_df_unique_val_list(df,non_unique_colname)
+        for key in tqdm(col_name_list,desc='df_to_dic_non_unique_key'):
+            df_col_name = df[df[non_unique_colname]==key]
+            df_year_dict = self.df_to_dic(df_col_name,unique_colname)
+            df_to_dict[key] = df_year_dict
+        return df_to_dict
+
     def add_pix_to_df_from_lon_lat(self, df):
         lon_list = []
         lat_list = []
@@ -1113,6 +1122,16 @@ class Tools:
         down = mean - std
         return up,down
 
+    def vals_to_time_sereis_annual(self,vals,yearlist:list=None,start_year:int=None):
+        if yearlist == start_year == None:
+            raise UserWarning('You must input at least one parameter of "year list" or "start year"')
+        if start_year != None:
+            yearlist = list(range(start_year, start_year + len(vals)))
+            xval_ts = pd.Series(vals, index=yearlist)
+            return xval_ts
+        if yearlist != None:
+            xval_ts = pd.Series(vals, index=yearlist)
+            return xval_ts
 
 class SMOOTH:
     '''
