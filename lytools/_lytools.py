@@ -31,6 +31,7 @@ import requests
 import pickle
 import time
 import datetime
+import itertools
 
 from operator import itemgetter
 from itertools import groupby
@@ -1145,6 +1146,34 @@ class Tools:
         rgb_list.append(1)
         return tuple(rgb_list)
 
+    def cross_list(self,*args,is_unique=False):
+        # auto generate by github copilot
+        cross_list = list(itertools.product(*args))
+        cross_list = [x for x in cross_list if x[0] != x[1]]
+        cross_list_unique = []
+        for x in cross_list:
+            x_list = list(x)
+            x_list.sort()
+            cross_list_unique.append(tuple(x_list))
+        cross_list_unique = list(set(cross_list_unique))
+        if is_unique:
+            return cross_list_unique
+        else:
+            return cross_list
+
+    def cross_select_dataframe(self,df,*args,is_unique=False):
+        unique_value_list = []
+        for arg in args:
+            unique_value = self.get_df_unique_val_list(df, arg)
+            unique_value_list.append(unique_value)
+        cross_list = self.cross_list(*unique_value_list,is_unique=is_unique)
+        cross_df_dict = {}
+        for x in cross_list:
+            df_copy = copy.copy(df)
+            for xi in range(len(x)):
+                df_copy = df_copy[df_copy[args[xi]] == x[xi]]
+            cross_df_dict[x] = df_copy
+        return cross_df_dict
 
 class SMOOTH:
     '''
