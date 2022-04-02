@@ -1162,18 +1162,27 @@ class Tools:
             return cross_list
 
     def cross_select_dataframe(self,df,*args,is_unique=False):
-        unique_value_list = []
-        for arg in args:
+        if len(args) == 1:
+            arg = args[0]
             unique_value = self.get_df_unique_val_list(df, arg)
-            unique_value_list.append(unique_value)
-        cross_list = self.cross_list(*unique_value_list,is_unique=is_unique)
-        cross_df_dict = {}
-        for x in cross_list:
-            df_copy = copy.copy(df)
-            for xi in range(len(x)):
-                df_copy = df_copy[df_copy[args[xi]] == x[xi]]
-            cross_df_dict[x] = df_copy
-        return cross_df_dict
+            cross_df_dict = {}
+            for uv in unique_value:
+                df_temp = df[df[arg] == uv]
+                cross_df_dict[uv] = df_temp
+            return cross_df_dict
+        else:
+            unique_value_list = []
+            for arg in args:
+                unique_value = self.get_df_unique_val_list(df, arg)
+                unique_value_list.append(unique_value)
+            cross_list = self.cross_list(*unique_value_list,is_unique=is_unique)
+            cross_df_dict = {}
+            for x in cross_list:
+                df_copy = copy.copy(df)
+                for xi in range(len(x)):
+                    df_copy = df_copy[df_copy[args[xi]] == x[xi]]
+                cross_df_dict[x] = df_copy
+            return cross_df_dict
 
 class SMOOTH:
     '''
