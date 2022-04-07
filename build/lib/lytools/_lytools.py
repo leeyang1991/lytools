@@ -521,32 +521,60 @@ class Tools:
         :param inputlist:
 
         # input list format
-        # [[lon,lat,val],
+        # [
+        # [lon,lat,{'col1':value1,'col2':value2,...}],
         #      ...,
-        # [lon,lat,val]]
+        # [lon,lat,{'col1':value1,'col2':value2,...}]
+        # ]
 
         :param outSHPfn:
         :return:
         '''
 
+        fieldType_dict = {
+            'float':ogr.OFTReal,
+            'int':ogr.OFTInteger,
+            'str':ogr.OFTString
+        }
+
         if len(inputlist) > 0:
-            outSHPfn = outSHPfn + '.shp'
-            fieldType = ogr.OFTReal
+            if outSHPfn.endswith('.shp'):
+                outSHPfn = outSHPfn
+            else:
+                outSHPfn = outSHPfn + '.shp'
             # Create the output shapefile
             shpDriver = ogr.GetDriverByName("ESRI Shapefile")
             if os.path.exists(outSHPfn):
                 shpDriver.DeleteDataSource(outSHPfn)
             outDataSource = shpDriver.CreateDataSource(outSHPfn)
             outLayer = outDataSource.CreateLayer(outSHPfn, geom_type=ogr.wkbPoint)
-            idField1 = ogr.FieldDefn('val', fieldType)
-            outLayer.CreateField(idField1)
+            # Add the fields we're interested in
+            col_list = inputlist[0][2].keys()
+            col_list = list(col_list)
+            col_list.sort()
+            value_type_list = []
+            for col in col_list:
+                if len(col) > 10:
+                    raise UserWarning(f'The length of column name "{col}" is too long, length must be less than 10\nplease rename the column')
+                value = inputlist[0][2][col]
+                value_type = type(value)
+                value_type_list.append(value_type)
+            for i in range(len(value_type_list)):
+                ogr_type = fieldType_dict[value_type_list[i].__name__]
+                col_name = col_list[i]
+                fieldDefn = ogr.FieldDefn(col_name, ogr_type)
+                outLayer.CreateField(fieldDefn)
             for i in range(len(inputlist)):
                 point = ogr.Geometry(ogr.wkbPoint)
                 point.AddPoint(inputlist[i][0], inputlist[i][1])
                 featureDefn = outLayer.GetLayerDefn()
                 outFeature = ogr.Feature(featureDefn)
                 outFeature.SetGeometry(point)
-                outFeature.SetField('val', inputlist[i][2])
+                for j in range(len(col_list)):
+                    col_name = col_list[j]
+                    value = inputlist[i][2][col_name]
+                    outFeature.SetField(col_name, value)
+                # outFeature.SetField('val', inputlist[i][2])
                 # 加坐标系
                 spatialRef = osr.SpatialReference()
                 spatialRef.ImportFromEPSG(4326)
@@ -2628,6 +2656,8 @@ class Pre_Process:
 
     def compose_tif_list(self, flist, outf, less_than=-9999, method='mean'):
         # less_than -9999, mask as np.nan
+        if len(flist) == 0:
+            return
         tif_template = flist[0]
         void_dic = DIC_and_TIF(tif_template=tif_template).void_spatial_dic()
         for f in tqdm(flist, desc='transforming...'):
