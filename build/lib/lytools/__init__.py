@@ -2,5 +2,5 @@
 
 from ._lytools import *
 
-__version__ = '0.0.45'
+__version__ = '0.0.46'
 print('lytools version',__version__)

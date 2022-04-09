@@ -1212,6 +1212,42 @@ class Tools:
                 cross_df_dict[x] = df_copy
             return cross_df_dict
 
+
+    def resample_nan(self,array,target_res,original_res):
+        array = array.astype(np.float32)
+        array[array == -999999] = np.nan
+        window_len = int(target_res / original_res)
+        array_row_new = len(array) / window_len
+        array_col_new = len(array[0]) / window_len
+        array_row_new = int(array_row_new)
+        array_col_new = int(array_col_new)
+        matrix = []
+        for i in range(array_row_new):
+            row = array[i * window_len:(i + 1) * window_len]
+            temp = []
+            for j in range(array_col_new):
+                row_T = row.T
+                col_T = row_T[j * window_len:(j + 1) * window_len]
+                matrix_i = col_T.T
+                ## count the number of nan
+                matrix_i_flat = matrix_i.flatten()
+                nan_flag = np.isnan(matrix_i_flat)
+                nan_number = self.count_num(nan_flag, True)
+                nan_ratio = nan_number / len(matrix_i_flat)
+                if nan_ratio > 0.5:
+                    mean_matrix_i = np.nan
+                else:
+                    mean_matrix_i = np.nansum(matrix_i) / len(matrix_i_flat)
+                    # temp.append(np.nanmean(mean_matrix_i))
+                temp.append(mean_matrix_i)
+            # print(temp)
+            temp = np.array(temp)
+            matrix.append(temp)
+        matrix = np.array(matrix)
+        # matrix[matrix == 0] = np.nan
+        return matrix
+        pass
+
 class SMOOTH:
     '''
     一些平滑算法
