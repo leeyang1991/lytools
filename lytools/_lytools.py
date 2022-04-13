@@ -1642,6 +1642,33 @@ class DIC_and_TIF:
 
         pass
 
+    def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir):
+        Tools().mk_dir(outdir)
+        ## check values number
+        vals_number_list = []
+        for pix in spatial_dic:
+            vals = spatial_dic[pix]
+            vals_number = len(vals)
+            if vals_number not in vals_number_list:
+                vals_number_list.append(vals_number)
+        vals_number_list = list(set(vals_number_list))
+        if len(vals_number_list) != 1:
+            print('vals number not equal')
+            raise
+        vals_number = vals_number_list[0]
+        ## get number digits
+        vals_number_str = str(vals_number)
+        vals_number_digits = len(vals_number_str)
+        n = vals_number_digits
+        for i in tqdm(range(vals_number)):
+            spatial_dic_i = {}
+            for pix in spatial_dic:
+                val = spatial_dic[pix][i]
+                spatial_dic_i[pix] = val
+            fname = f'{i:0{n}d}.tif'
+            fpath = join(outdir, fname)
+            self.pix_dic_to_tif(spatial_dic_i, fpath)
+
     def spatial_tif_to_lon_lat_dic(self, temp_dir):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')

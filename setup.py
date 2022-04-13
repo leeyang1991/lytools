@@ -4,7 +4,7 @@ from setuptools import setup
 long_description = open('README.md').read()
 setup(
     name='lytools',
-    version='0.0.46',
+    version='0.0.47',
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Yang Lee',
