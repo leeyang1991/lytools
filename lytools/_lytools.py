@@ -1213,9 +1213,9 @@ class Tools:
             return cross_df_dict
 
 
-    def resample_nan(self,array,target_res,original_res):
+    def resample_nan(self,array,target_res,original_res,nan_value=-999999):
         array = array.astype(np.float32)
-        array[array == -999999] = np.nan
+        array[array == nan_value] = np.nan
         window_len = int(target_res / original_res)
         array_row_new = len(array) / window_len
         array_col_new = len(array[0]) / window_len
@@ -1247,6 +1247,15 @@ class Tools:
         # matrix[matrix == 0] = np.nan
         return matrix
         pass
+
+    def cmap_blend(self,color_list):
+        # color_list = ['#007F00', '#FFFCCA', '#793D8A']
+        cmap = sns.blend_palette(color_list, as_cmap=True)
+        return cmap
+
+    def cmap_diverging(self,start_color_hue,end_color_hue,saturation=100,lightness=40):
+        cmap = sns.diverging_palette(0, 120, s=saturation, l=40, as_cmap=True)
+        return cmap
 
 class SMOOTH:
     '''
@@ -1739,7 +1748,7 @@ class DIC_and_TIF:
                 void_dic[key] = 1.
         return void_dic
 
-    def plot_back_ground_arr(self, rasterized_world_tif, **kwargs):
+    def plot_back_ground_arr(self, rasterized_world_tif,ax=None, **kwargs):
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         ndv = ToRaster().get_ndv(rasterized_world_tif)
         back_ground = []
@@ -1753,13 +1762,13 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
+        if ax == None:
+            plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
+        else:
+            ax.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
-        # return back_ground
 
-        pass
-
-    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,**kwargs):
+    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,ax=None,**kwargs):
 
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
@@ -1773,7 +1782,10 @@ class DIC_and_TIF:
                     temp.append(1)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
-        plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1,**kwargs)
+        if ax == None:
+            plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1,**kwargs)
+        else:
+            ax.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
     def mask_ocean_dic(self):
         arr = self.arr_template
