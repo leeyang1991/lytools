@@ -60,6 +60,14 @@ class Tools:
         pass
 
     def mk_dir(self, dir, force=False):
+        print('will deprecated in the future version\nuse mkdir instead')
+        if not os.path.isdir(dir):
+            if force == True:
+                os.makedirs(dir)
+            else:
+                os.mkdir(dir)
+
+    def mkdir(self, dir, force=False):
 
         if not os.path.isdir(dir):
             if force == True:
@@ -1256,6 +1264,16 @@ class Tools:
     def cmap_diverging(self,start_color_hue,end_color_hue,saturation=100,lightness=40):
         cmap = sns.diverging_palette(0, 120, s=saturation, l=40, as_cmap=True)
         return cmap
+
+    def get_max_key_from_dict(self,input_dict):
+        max_key = None
+        max_value = -np.inf
+        for key in input_dict:
+            value = input_dict[key]
+            if value > max_value:
+                max_key = key
+                max_value = value
+        return max_key
 
 class SMOOTH:
     '''
