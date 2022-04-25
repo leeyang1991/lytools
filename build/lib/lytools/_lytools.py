@@ -60,7 +60,7 @@ class Tools:
         pass
 
     def mk_dir(self, dir, force=False):
-        print('will deprecated in the future version\nuse mkdir instead')
+        # print('will deprecated in the future version\nuse mkdir instead')
         if not os.path.isdir(dir):
             if force == True:
                 os.makedirs(dir)
@@ -79,9 +79,9 @@ class Tools:
         this_class_arr = join(result_root_this_script, f'arr/{class_name}/')
         this_class_tif = join(result_root_this_script, f'tif/{class_name}/')
         this_class_png = join(result_root_this_script, f'png/{class_name}/')
-        self.mk_dir(this_class_arr, force=True)
-        self.mk_dir(this_class_tif, force=True)
-        self.mk_dir(this_class_png, force=True)
+        self.mkdir(this_class_arr, force=True)
+        self.mkdir(this_class_tif, force=True)
+        self.mkdir(this_class_png, force=True)
 
         return this_class_arr, this_class_tif, this_class_png
 
@@ -191,7 +191,7 @@ class Tools:
 
     def lonlat_to_address(self, lon, lat):
         temporary_foler = 'temporary_foler/lonlat_to_address'
-        self.mk_dir(temporary_foler, force=True)
+        self.mkdir(temporary_foler, force=True)
         outf = join(temporary_foler, 'address.xlsx')
         if not isfile(outf):
             address = self.__lonlat_to_address(lon, lat)
@@ -1091,10 +1091,10 @@ class Tools:
     def unzip(self, zipfolder, outdir):
         # zipfolder = join(self.datadir,'zips')
         # outdir = join(self.datadir,'unzip')
-        self.mk_dir(outdir)
+        self.mkdir(outdir)
         for f in tqdm(self.listdir(zipfolder)):
             outdir_i = join(outdir, f.replace('.zip', ''))
-            self.mk_dir(outdir_i)
+            self.mkdir(outdir_i)
             fpath = join(zipfolder, f)
             zip_ref = zipfile.ZipFile(fpath, 'r')
             zip_ref.extractall(outdir_i)
@@ -1670,7 +1670,7 @@ class DIC_and_TIF:
         pass
 
     def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir):
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         ## check values number
         vals_number_list = []
         for pix in spatial_dic:
@@ -1699,7 +1699,7 @@ class DIC_and_TIF:
     def spatial_tif_to_lon_lat_dic(self, temp_dir):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
-        Tools().mk_dir(this_class_dir, force=True)
+        Tools().mkdir(this_class_dir, force=True)
         outf = os.path.join(this_class_dir, 'spatial_tif_to_lon_lat_dic')
         if os.path.isfile(outf):
             print(f'loading {outf}')
@@ -2473,7 +2473,7 @@ class Pre_Process:
     def data_transform(self, fdir, outdir, n=10000):
         n = int(n)
         # 不可并行，内存不足
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         # 将空间图转换为数组
         # per_pix_data
         flist = Tools().listdir(fdir)
@@ -2537,7 +2537,7 @@ class Pre_Process:
     def data_transform_with_date_list(self, fdir, outdir, date_list, n=10000):
         n = int(n)
         # 不可并行，内存不足
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         outdir = outdir + '/'
         # 将空间图转换为数组
         template_f = os.path.join(fdir, Tools().listdir(fdir)[0])
@@ -2700,7 +2700,7 @@ class Pre_Process:
     def cal_anomaly(self, fdir, save_dir):
         # fdir = this_root + 'NDVI/per_pix/'
         # save_dir = this_root + 'NDVI/per_pix_anomaly/'
-        Tools().mk_dir(save_dir)
+        Tools().mkdir(save_dir)
         flist = Tools().listdir(fdir)
         # flag = 0
         params = []
@@ -2716,7 +2716,7 @@ class Pre_Process:
 
     def clean_per_pix(self, fdir, outdir, mode='linear'):
         # mode = climatology
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         for f in tqdm(Tools().listdir(fdir)):
             dic = Tools().load_npy(fdir + '/' + f)
             clean_dic = {}
@@ -2739,7 +2739,7 @@ class Pre_Process:
         pass
 
     def detrend(self, fdir, outdir):
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         for f in tqdm(Tools().listdir(fdir), desc='detrend...'):
             dic = Tools().load_npy(join(fdir,f))
             dic_detrend = Tools().detrend_dic(dic)
@@ -2827,7 +2827,7 @@ class Pre_Process:
         :param date_fmt: 'yyyymmdd' or 'doy'
         :return:
         '''
-        Tools().mk_dir(outdir)
+        Tools().mkdir(outdir)
         year_list = []
         month_list = []
         for f in Tools().listdir(indir):
@@ -3086,7 +3086,7 @@ class ToRaster:
     #     m1 = hashlib.md5(originX_str + originY_str + pixelWidth_str + pixelHeight_str + in_shp_encode)
     #     md5filename = m1.hexdigest() + '.tif'
     #     temp_dir = 'temporary_directory/'
-    #     Tools().mk_dir(temp_dir)
+    #     Tools().mkdir(temp_dir)
     #     temp_out_raster = temp_dir + md5filename
     #     if not os.path.isfile(temp_out_raster):
     #         self.shp_to_raster(in_shp, temp_out_raster, pixelWidth, in_raster_template=in_raster, )
