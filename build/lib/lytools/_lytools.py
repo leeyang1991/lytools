@@ -17,6 +17,8 @@ import pandas as pd
 
 import seaborn as sns
 
+from netCDF4 import Dataset
+
 import multiprocessing
 from multiprocessing.pool import ThreadPool as TPool
 
@@ -1274,6 +1276,55 @@ class Tools:
                 max_key = key
                 max_value = value
         return max_key
+    def nc_to_tif(self,fname,var_name,outdir):
+        try:
+            ncin = Dataset(fname, 'r')
+        except:
+            return
+        lat = ncin.variables['lat'][:]
+        lon = ncin.variables['lon'][:]
+        shape = np.shape(lat)
+
+        time = ncin.variables['time'][:]
+        basetime = ncin.variables['time'].units
+        basetime = basetime.strip('days since ')
+        try:
+            basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d')
+        except:
+            try:
+                basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S')
+            except:
+                basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S.%f')
+        data = ncin.variables[var_name]
+        if len(shape) == 2:
+            xx,yy = lon,lat
+        else:
+            xx,yy = np.meshgrid(lon, lat)
+        for time_i in range(len(data)):
+            date = basetime + datetime.timedelta(days=time[time_i])
+            time_str = time[time_i]
+            mon = date.month
+            year = date.year
+            outf_name = f'{year}{mon:02d}.tif'
+            outpath = join(outdir, outf_name)
+            if isfile(outpath):
+                continue
+            arr = data[time_i]
+            arr = np.array(arr)
+            lon_list = []
+            lat_list = []
+            value_list = []
+            for i in range(len(arr)):
+                for j in range(len(arr[i])):
+                    lon_i = xx[i][j]
+                    if lon_i > 180:
+                        lon_i -= 360
+                    lat_i = yy[i][j]
+                    value_i = arr[i][j]
+                    lon_list.append(lon_i)
+                    lat_list.append(lat_i)
+                    value_list.append(value_i)
+            DIC_and_TIF().lon_lat_val_to_tif(lon_list, lat_list, value_list,outpath)
 
 class SMOOTH:
     '''
@@ -1781,9 +1832,9 @@ class DIC_and_TIF:
             back_ground.append(temp)
         back_ground = np.array(back_ground)
         if ax == None:
-            plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
+            plt.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
         else:
-            ax.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
+            ax.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
 
     def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,ax=None,**kwargs):
@@ -2681,6 +2732,17 @@ class Pre_Process:
             pix_anomaly.append(anomaly)
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
+
+    def z_score(self, vals):
+        vals = np.array(vals)
+        mean = np.nanmean(vals)
+        std = np.nanstd(vals)
+        if std == 0:
+            anomaly = 0
+        else:
+            anomaly = (vals - mean) / std
+        return anomaly
+
 
     def cal_anomaly_juping(self, vals):
         mean = np.nanmean(vals)
