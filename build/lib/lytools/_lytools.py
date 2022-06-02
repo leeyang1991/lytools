@@ -1827,8 +1827,11 @@ class DIC_and_TIF:
                 val = arr[i][j]
                 if val == ndv:
                     temp.append(np.nan)
+                    continue
+                if val != 1:
+                    temp.append(np.nan)
                 else:
-                    temp.append(1)
+                    temp.append(1.)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
         if ax == None:
@@ -1838,17 +1841,20 @@ class DIC_and_TIF:
 
 
     def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,ax=None,**kwargs):
-
+        ndv = ToRaster().get_ndv(rasterized_world_tif)
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
         for i in range(len(arr)):
             temp = []
             for j in range(len(arr[0])):
                 val = arr[i][j]
-                if val < -90000:
+                if val == ndv:
+                    temp.append(np.nan)
+                    continue
+                if val != 1:
                     temp.append(np.nan)
                 else:
-                    temp.append(1)
+                    temp.append(1.)
             back_ground.append(temp)
         back_ground = np.array(back_ground)
         if ax == None:
