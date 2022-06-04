@@ -1276,36 +1276,87 @@ class Tools:
                 max_key = key
                 max_value = value
         return max_key
+
+    def days_number_of_year(self,year):
+        if year % 4 == 0:
+            if year % 100 == 0:
+                if year % 400 == 0:
+                    return 366
+                else:
+                    return 365
+            else:
+                return 366
+        else:
+            return 365
+
+    def count_days_of_two_dates(self,date1,date2):
+        date1 = datetime.datetime.strptime(date1,'%Y-%m-%d')
+        date2 = datetime.datetime.strptime(date2,'%Y-%m-%d')
+        delta = date2 - date1
+        return delta.days
+
     def nc_to_tif(self,fname,var_name,outdir):
         try:
             ncin = Dataset(fname, 'r')
         except:
-            return
-        lat = ncin.variables['lat'][:]
-        lon = ncin.variables['lon'][:]
+            raise UserWarning('File not supported: ' + fname)
+        # lon,lat = np.nan,np.nan
+        try:
+            lat = ncin.variables['lat'][:]
+            lon = ncin.variables['lon'][:]
+        except:
+            try:
+                lat = ncin.variables['latitude'][:]
+                lon = ncin.variables['longitude'][:]
+            except:
+                raise UserWarning('lat or lon not found')
         shape = np.shape(lat)
 
         time = ncin.variables['time'][:]
-        basetime = ncin.variables['time'].units
-        basetime = basetime.strip('days since ')
+        basetime_str = ncin.variables['time'].units
+        basetime_unit = basetime_str.split('since')[0]
+        basetime_unit = basetime_unit.strip()
+        if basetime_unit == 'days':
+            timedelta_unit = 'days'
+        elif basetime_unit == 'years':
+            timedelta_unit = 'years'
+        else:
+            raise Exception('basetime unit not supported')
+        basetime = basetime_str.strip(f'{timedelta_unit} since ')
         try:
             basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d')
         except:
             try:
                 basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S')
             except:
-                basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S.%f')
+                try:
+                    basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S.%f')
+                except:
+                    try:
+                        basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M')
+                    except:
+                        raise UserWarning('basetime format not supported')
         data = ncin.variables[var_name]
         if len(shape) == 2:
             xx,yy = lon,lat
         else:
             xx,yy = np.meshgrid(lon, lat)
-        for time_i in range(len(data)):
-            date = basetime + datetime.timedelta(days=time[time_i])
+        for time_i in tqdm(range(len(time))):
+            if basetime_unit == 'days':
+                date = basetime + datetime.timedelta(days=time[time_i])
+            elif basetime_unit == 'years':
+                date1 = basetime.strftime('%Y-%m-%d')
+                base_year = basetime.year
+                date2 = f'{int(base_year+time[time_i])}-01-01'
+                delta_days = self.count_days_of_two_dates(date1,date2)
+                date = basetime + datetime.timedelta(days=delta_days)
+            else:
+                raise Exception('basetime unit not supported')
             time_str = time[time_i]
             mon = date.month
             year = date.year
-            outf_name = f'{year}{mon:02d}.tif'
+            day = date.day
+            outf_name = f'{year}{mon:02d}{day:02d}.tif'
             outpath = join(outdir, outf_name)
             if isfile(outpath):
                 continue
