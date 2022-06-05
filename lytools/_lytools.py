@@ -1298,9 +1298,10 @@ class Tools:
     def nc_to_tif(self,fname,var_name,outdir):
         try:
             ncin = Dataset(fname, 'r')
+            print(ncin.variables.keys())
+
         except:
             raise UserWarning('File not supported: ' + fname)
-        # lon,lat = np.nan,np.nan
         try:
             lat = ncin.variables['lat'][:]
             lon = ncin.variables['lon'][:]
@@ -1309,17 +1310,35 @@ class Tools:
                 lat = ncin.variables['latitude'][:]
                 lon = ncin.variables['longitude'][:]
             except:
-                raise UserWarning('lat or lon not found')
+                try:
+                    lat = ncin.variables['lat_FULL'][:]
+                    lon = ncin.variables['lon_FULL'][:]
+                except:
+                    raise UserWarning('lat or lon not found')
         shape = np.shape(lat)
+        try:
+            time = ncin.variables['time_counter'][:]
+            basetime_str = ncin.variables['time_counter'].units
+        except:
+            time = ncin.variables['time'][:]
+            basetime_str = ncin.variables['time'].units
 
-        time = ncin.variables['time'][:]
-        basetime_str = ncin.variables['time'].units
         basetime_unit = basetime_str.split('since')[0]
         basetime_unit = basetime_unit.strip()
+        print(basetime_unit)
+        print(basetime_str)
         if basetime_unit == 'days':
             timedelta_unit = 'days'
         elif basetime_unit == 'years':
             timedelta_unit = 'years'
+        elif basetime_unit == 'month':
+            timedelta_unit = 'month'
+        elif basetime_unit == 'months':
+            timedelta_unit = 'month'
+        elif basetime_unit == 'seconds':
+            timedelta_unit = 'seconds'
+        elif basetime_unit == 'hours':
+            timedelta_unit = 'hours'
         else:
             raise Exception('basetime unit not supported')
         basetime = basetime_str.strip(f'{timedelta_unit} since ')
@@ -1327,29 +1346,43 @@ class Tools:
             basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d')
         except:
             try:
-                basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S')
+                basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d %H:%M:%S')
             except:
                 try:
-                    basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M:%S.%f')
+                    basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d %H:%M:%S.%f')
                 except:
                     try:
-                        basetime = datetime.datetime.strptime(basetime,'%Y-%m-%d %H:%M')
+                        basetime = datetime.datetime.strptime(basetime, '%Y-%m-%d %H:%M')
                     except:
-                        raise UserWarning('basetime format not supported')
+                        try:
+                            basetime = datetime.datetime.strptime(basetime, '%Y-%m')
+                        except:
+                            raise UserWarning('basetime format not supported')
         data = ncin.variables[var_name]
         if len(shape) == 2:
-            xx,yy = lon,lat
+            xx, yy = lon, lat
         else:
-            xx,yy = np.meshgrid(lon, lat)
+            xx, yy = np.meshgrid(lon, lat)
         for time_i in tqdm(range(len(time))):
             if basetime_unit == 'days':
-                date = basetime + datetime.timedelta(days=time[time_i])
+                date = basetime + datetime.timedelta(days=int(time[time_i]))
             elif basetime_unit == 'years':
                 date1 = basetime.strftime('%Y-%m-%d')
                 base_year = basetime.year
-                date2 = f'{int(base_year+time[time_i])}-01-01'
-                delta_days = self.count_days_of_two_dates(date1,date2)
+                date2 = f'{int(base_year + time[time_i])}-01-01'
+                delta_days = Tools().count_days_of_two_dates(date1, date2)
                 date = basetime + datetime.timedelta(days=delta_days)
+            elif basetime_unit == 'month' or basetime_unit == 'months':
+                date1 = basetime.strftime('%Y-%m-%d')
+                base_year = basetime.year
+                base_month = basetime.month
+                date2 = f'{int(base_year + time[time_i] // 12)}-{int(base_month + time[time_i] % 12)}-01'
+                delta_days = Tools().count_days_of_two_dates(date1, date2)
+                date = basetime + datetime.timedelta(days=delta_days)
+            elif basetime_unit == 'seconds':
+                date = basetime + datetime.timedelta(seconds=int(time[time_i]))
+            elif basetime_unit == 'hours':
+                date = basetime + datetime.timedelta(hours=int(time[time_i]))
             else:
                 raise Exception('basetime unit not supported')
             time_str = time[time_i]
@@ -1375,7 +1408,8 @@ class Tools:
                     lon_list.append(lon_i)
                     lat_list.append(lat_i)
                     value_list.append(value_i)
-            DIC_and_TIF().lon_lat_val_to_tif(lon_list, lat_list, value_list,outpath)
+            DIC_and_TIF().lon_lat_val_to_tif(lon_list, lat_list, value_list, outpath)
+
 
 class SMOOTH:
     '''
