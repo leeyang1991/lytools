@@ -1410,6 +1410,27 @@ class Tools:
                     value_list.append(value_i)
             DIC_and_TIF().lon_lat_val_to_tif(lon_list, lat_list, value_list, outpath)
 
+    def uncertainty_err(self,vals):
+        mean = np.nanmean(vals)
+        std = np.nanstd(vals)
+        up, bottom = stats.t.interval(0.95, len(vals) - 1, loc=mean, scale=std / np.sqrt(len(vals)))
+        err = mean - bottom
+        return err, up, bottom
+
+    def df_bin(self,df,col,bins):
+        df[f'{col}_bins'] = pd.cut(df[col],bins=bins)
+        df_group = df.groupby([f'{col}_bins'])
+        bins_name = df_group.groups.keys()
+        bins_name_list = list(bins_name)
+        bins_list_str = [str(i) for i in bins_name_list]
+        # for name,df_group_i in df_group:
+        #     vals = df_group_i[col].tolist()
+        #     mean = np.nanmean(vals)
+        #     err,_,_ = self.uncertainty_err(SM)
+        #     # x_list.append(name)
+        #     y_list.append(mean)
+        #     err_list.append(err)
+        return df_group,bins_list_str
 
 class SMOOTH:
     '''
