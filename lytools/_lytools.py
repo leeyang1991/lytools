@@ -2126,19 +2126,21 @@ class DIC_and_TIF:
         latlist_set = latlist_set[::-1]
         originX = min(lonlist_set)
         originY = max(latlist_set)
-        pixelWidth = lonlist_set[1] - lonlist_set[0]
-        pixelHeight = latlist_set[1] - latlist_set[0]
+        pixelWidth = (lonlist_set[-1] - lonlist_set[0]) / (len(lonlist_set) - 1)
+        pixelHeight = (latlist_set[-1] - latlist_set[0]) / (len(latlist_set) - 1)
         spatial_dic = {}
         for i in range(len(lon_list)):
             lon = lon_list[i]
             lat = lat_list[i]
             val = val_list[i]
-            r = abs(int((lat - originY) / pixelHeight))
-            c = abs(int((lon - originX) / pixelWidth))
+            r = abs(round((lat - originY) / pixelHeight))
+            c = abs(round((lon - originX) / pixelWidth))
+            r = int(r)
+            c = int(c)
             spatial_dic[(r, c)] = val
         spatial = []
-        row = abs(int((max(latlist_set) - min(latlist_set)) / pixelHeight))
-        col = abs(int((max(lonlist_set) - min(lonlist_set)) / pixelWidth))
+        row = len(latlist_set)
+        col = len(lonlist_set)
         for r in range(row):
             temp = []
             for c in range(col):
