@@ -1076,6 +1076,51 @@ class Tools:
 
         return annual_val_list
 
+
+    def monthly_to_annual_with_datetime_obj(self,vals,date_range,grow_season:list, method='mean'):
+        if grow_season == None:
+            grow_season = list(range(12))
+        else:
+            grow_season = np.array(grow_season, dtype=int)
+            grow_season = grow_season - 1
+            if grow_season[0] < 0:
+                raise UserWarning(f'Error grow_season:{grow_season}')
+        year_list = []
+        for date in date_range:
+            year = date.year
+            if year not in year_list:
+                year_list.append(year)
+        year_list.sort()
+        vals_dict = dict(zip(date_range, vals))
+        annual_dict = {y:[] for y in year_list}
+        for date in vals_dict:
+            year = date.year
+            mon = date.month
+            if not mon in grow_season:
+                continue
+            annual_dict[year].append(vals_dict[date])
+
+        vals_gs_annual = []
+        for year in year_list:
+            one_year_vals = annual_dict[year]
+            if method == 'mean':
+                annual_val = np.nanmean(one_year_vals)
+            elif method == 'max':
+                annual_val = np.nanmax(one_year_vals)
+            elif method == 'min':
+                annual_val = np.nanmin(one_year_vals)
+            elif method == 'array':
+                annual_val = np.array(one_year_vals)
+            elif method == 'sum':
+                annual_val = np.nansum(one_year_vals)
+            else:
+                raise UserWarning(f'method:{method} error')
+            vals_gs_annual.append(annual_val)
+        vals_gs_annual = np.array(vals_gs_annual)
+        year_date_obj_list = [datetime.datetime(y, 1, 1) for y in year_list]
+        return year_date_obj_list, vals_gs_annual
+
+
     def monthly_vals_to_date_dic(self, monthly_val, start_year, end_year):
         date_list = []
         for y in range(start_year, end_year + 1):
