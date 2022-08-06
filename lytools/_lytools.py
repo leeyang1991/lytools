@@ -1477,6 +1477,15 @@ class Tools:
         #     err_list.append(err)
         return df_group,bins_list_str
 
+    def ANOVA_test(self,*args,method:str):
+        if method == 'f_oneway':
+            return stats.f_oneway(*args)
+        elif method == 'ks':
+            if len(args) == 2:
+                return stats.ks_2samp(*args)
+            else:
+                raise ValueError('KS test args length must be 2')
+
 class SMOOTH:
     '''
     一些平滑算法
@@ -2401,6 +2410,14 @@ class DIC_and_TIF:
                     plt.text(lat_list[i], lon_list[i], text_list[i])
         if isshow:
             plt.show()
+
+    def plot_df_spatial_pix(self,df,global_land_tif):
+        pix_list = df['pix'].tolist()
+        pix_list = list(set(pix_list))
+        spatial_dict = {pix:1 for pix in pix_list}
+        arr = self.pix_dic_to_spatial_arr(spatial_dict)
+        self.plot_back_ground_arr(global_land_tif)
+        plt.imshow(arr)
 
 
 class MULTIPROCESS:
