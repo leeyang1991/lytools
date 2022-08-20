@@ -34,6 +34,7 @@ import pickle
 import time
 import datetime
 import itertools
+import subprocess
 
 from operator import itemgetter
 from itertools import groupby
@@ -604,6 +605,7 @@ class Tools:
     def print_head_n(self, df, n=10, pause_flag=0):
         self.show_df_all_columns()
         print(df.head(n))
+        print('Dataframe length:',len(df))
         if pause_flag == 1:
             pause()
 
@@ -707,7 +709,12 @@ class Tools:
         return num
 
     def open_path_and_file(self, fpath):
-        os.system('open {}'.format(fpath))
+        if sys.platform == "win32":
+            os.startfile(fpath)
+        else:
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.call([opener, fpath])
+        # os.system('open {}'.format(fpath))
 
     def slide_window_correlation(self, x, y, window=15):
         time_series = []
