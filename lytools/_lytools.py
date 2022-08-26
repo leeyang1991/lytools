@@ -442,6 +442,33 @@ class Tools:
             #     exit()
             return mean, xerr
 
+    def arrs_nan_trend(self, arrs):
+        arrs = np.array(arrs)
+        trend_matrix = []
+        P_matrix = []
+        for r in range(arrs.shape[1]):
+            trend_i = []
+            p_i = []
+            for c in range(arrs.shape[2]):
+                val_list = []
+                for arr in arrs:
+                    val = arr[r,c]
+                    val_list.append(val)
+                val_list = np.array(val_list)
+                if self.is_all_nan(val_list):
+                    trend_i.append(np.nan)
+                    p_i.append(np.nan)
+                    continue
+                a, b, R, p = self.nan_line_fit(np.arange(len(val_list)),val_list)
+                trend_i.append(a)
+                p_i.append(p)
+            trend_matrix.append(trend_i)
+            P_matrix.append(p_i)
+        trend_matrix = np.array(trend_matrix)
+        P_matrix = np.array(P_matrix)
+        return trend_matrix, P_matrix
+
+
     def pick_vals_from_2darray(self, array, index, pick_nan=False):
         # 2d
         ################# check zone #################
@@ -2383,7 +2410,7 @@ class DIC_and_TIF:
         return lon, lat
 
     def plot_sites_location(self, lon_list, lat_list, background_tif=None, inshp=None, out_background_tif=None,
-                            pixel_size=None, text_list=None, colorlist=None, isshow=True):
+                            pixel_size=None, text_list=None, colorlist=None, isshow=False,**kwargs):
         pix_list = self.lon_lat_to_pix(lon_list, lat_list, isInt=False)
         lon_list = []
         lat_list = []
@@ -2408,13 +2435,13 @@ class DIC_and_TIF:
                 self.plot_back_ground_arr(background_tif)
 
         if colorlist:
-            plt.scatter(lat_list, lon_list, c=colorlist, cmap='jet')
+            plt.scatter(lat_list, lon_list, c=colorlist, **kwargs)
             plt.colorbar()
         else:
-            plt.scatter(lat_list, lon_list)
-            if not text_list == None:
-                for i in range(len(lon_list)):
-                    plt.text(lat_list[i], lon_list[i], text_list[i])
+            plt.scatter(lat_list, lon_list, **kwargs)
+        if not text_list == None:
+            for i in range(len(lon_list)):
+                plt.text(lat_list[i], lon_list[i], text_list[i])
         if isshow:
             plt.show()
 
