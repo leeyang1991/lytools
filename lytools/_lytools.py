@@ -834,7 +834,8 @@ class Tools:
             data.append(vals_list)
             columns.append(col_list)
             index.append(key)
-        df = pd.DataFrame(data=data, columns=columns[0], index=index)
+        # df = pd.DataFrame(data=data, columns=columns[0], index=index)
+        df = pd.DataFrame(data=data, columns=columns[0])
         return df
 
     def dic_to_df_different_columns(self, dic, key_col_str='__key__'):
@@ -1002,6 +1003,21 @@ class Tools:
             lat_list.append(lat)
         pix_list = DIC_and_TIF().lon_lat_to_pix(lon_list, lat_list)
         df['pix'] = pix_list
+        return df
+
+    def add_lon_lat_to_df(self,df,D=None):
+        lon_list = []
+        lat_list = []
+        if D is None:
+            D = DIC_and_TIF()
+        for i,row in tqdm(df.iterrows(),total=len(df)):
+            pix = row.pix
+            lon,lat = D.pix_to_lon_lat(pix)
+            lon_list.append(lon)
+            lat_list.append(lat)
+        df['lon'] = lon_list
+        df['lat'] = lat_list
+
         return df
 
     def rename_dataframe_columns(self, df, old_name, new_name):
@@ -1519,6 +1535,10 @@ class Tools:
                 return stats.ks_2samp(*args)
             else:
                 raise ValueError('KS test args length must be 2')
+
+    def drop_df_index(self,df):
+        df = df.reset_index(drop=True)
+        return df
 
 class SMOOTH:
     '''
