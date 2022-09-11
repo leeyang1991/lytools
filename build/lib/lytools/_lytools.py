@@ -2474,6 +2474,53 @@ class DIC_and_TIF:
         plt.imshow(arr)
 
 
+    def rad(self,d):
+        return d * math.pi / 180
+
+    def GetDistance(self,lng1, lat1, lng2, lat2):
+        radLat1 = self.rad(lat1)
+        radLat2 = self.rad(lat2)
+        a = radLat1 - radLat2
+        b = self.rad(lng1) - self.rad(lng2)
+        s = 2 * math.asin(math.sqrt(
+            math.pow(math.sin(a / 2), 2) + math.cos(radLat1) * math.cos(radLat2) * math.pow(math.sin(b / 2), 2)))
+        s = s * 6378.137 * 1000
+        distance = round(s, 4)
+        return distance
+
+        #### from https://kite.com/python/answers/how-to-find-the-distance-between-two-lat-long-coordinates-in-python
+        # R = 6373.0
+        # dlon = lng2 - lng1
+        # dlat = lat2 - lat1
+        # a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        # c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        # distance = R * c
+        # # print distance
+        # # exit()
+        # return distance
+        pass
+
+    def calculate_pixel_area(self):
+        pix_list = self.void_spatial_dic()
+        pixel_size = self.pixelWidth
+        area_dict = {}
+        for pix in tqdm(pix_list,desc='calculate_pixel_area'):
+            lon,lat = self.pix_to_lon_lat(pix)
+            upper_left_lon = lon - pixel_size/2
+            upper_left_lat = lat + pixel_size/2
+            upper_right_lon = lon + pixel_size/2
+            upper_right_lat = lat + pixel_size/2
+            lower_left_lon = lon - pixel_size/2
+            lower_left_lat = lat - pixel_size/2
+            lower_right_lon = lon + pixel_size/2
+            lower_right_lat = lat - pixel_size/2
+            upper_left_to_upper_right = self.GetDistance(upper_left_lon,upper_left_lat,upper_right_lon,upper_right_lat)
+            upper_left_to_lower_left = self.GetDistance(upper_left_lon,upper_left_lat,lower_left_lon,lower_left_lat)
+            area = upper_left_to_upper_right * upper_left_to_lower_left
+            area_dict[pix] = area
+        return area_dict
+
+
 class MULTIPROCESS:
     '''
     可对类内的函数进行多进程并行
