@@ -1934,7 +1934,7 @@ class DIC_and_TIF:
 
         pass
 
-    def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir):
+    def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir, filename_list:list=None):
         Tools().mkdir(outdir)
         ## check values number
         vals_number_list = []
@@ -1948,6 +1948,8 @@ class DIC_and_TIF:
             print('vals number not equal')
             raise
         vals_number = vals_number_list[0]
+        if not vals_number == len(filename_list):
+            raise ValueError('vals number not equal to filename number')
         ## get number digits
         vals_number_str = str(vals_number)
         vals_number_digits = len(vals_number_str)
@@ -1957,7 +1959,10 @@ class DIC_and_TIF:
             for pix in spatial_dic:
                 val = spatial_dic[pix][i]
                 spatial_dic_i[pix] = val
-            fname = f'{i:0{n}d}.tif'
+            if filename_list is not None:
+                fname = str(filename_list[i]) + '.tif'
+            else:
+                fname = f'{i:0{n}d}.tif'
             fpath = join(outdir, fname)
             self.pix_dic_to_tif(spatial_dic_i, fpath)
 
