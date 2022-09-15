@@ -2773,6 +2773,9 @@ class KDE_plot:
             # plt.legend()
             return a, b, r, p
 
+    def plot_scatter_hex(self,x,y,kind="hex", color="#4CB391", xlim=None, ylim=None, gridsize=80):
+        sns.jointplot(x=x, y=y, kind="hex", color="#4CB391", xlim=xlim, ylim=ylim, gridsize=gridsize)
+
     def cmap_with_transparency(self, cmap, min_alpha=0., max_alpha=0.5):
         ncolors = 256
         color_array = plt.get_cmap(cmap)(range(ncolors))
