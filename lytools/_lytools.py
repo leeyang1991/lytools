@@ -1513,8 +1513,9 @@ class Tools:
         return err, up, bottom
 
     def df_bin(self,df,col,bins):
-        df[f'{col}_bins'] = pd.cut(df[col],bins=bins)
-        df_group = df.groupby([f'{col}_bins'])
+        df_copy = df.copy()
+        df_copy[f'{col}_bins'] = pd.cut(df[col],bins=bins)
+        df_group = df_copy.groupby([f'{col}_bins'])
         bins_name = df_group.groups.keys()
         bins_name_list = list(bins_name)
         bins_list_str = [str(i) for i in bins_name_list]
