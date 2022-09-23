@@ -3530,6 +3530,191 @@ class ToRaster:
         else:
             self.array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
+class HANTS:
+
+    def __init__(self):
+        '''
+        HANTS algorithm for time series smoothing
+        '''
+        pass
+
+    def hants_interpolate(self, values_list, dates_list, valid_range): # todo: need to change to 1D values
+        '''
+        :param values_list: 2D array of values
+        :param dates_list:  2D array of dates, datetime objects
+        :param valid_range: min and max valid values, (min, max)
+        :return: Dictionary of smoothed values, key: year, value: smoothed value
+        '''
+        year_list = []
+        for date in dates_list:
+            year = date[0].year
+            if year not in year_list:
+                year_list.append(year)
+        values_list = np.array(values_list)
+        std_list = []
+        for vals in values_list:
+            std = np.std(vals)
+            std_list.append(std)
+        std = np.mean(std_list)
+        std = 2. * std # larger than twice the standard deviation of the input data is rejected
+        interpolated_values_list = []
+        for i,values in enumerate(values_list):
+            dates = dates_list[i]
+            xnew, ynew = self.__interp_values_to_DOY(values, dates)
+            interpolated_values_list.append(ynew)
+
+        interpolated_values_list = np.array(interpolated_values_list)
+        results = HANTS().__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0], high=valid_range[1],
+                                fit_error_tolerance=std)
+        # plt.imshow(interpolated_values_list, aspect='auto',vmin=0,vmax=3)
+        # plt.colorbar()
+        #
+        # plt.figure()
+        # plt.imshow(results, aspect='auto',vmin=0,vmax=3)
+        # plt.colorbar()
+        # plt.show()
+        results_dict = dict(zip(year_list, results))
+        return results_dict
+
+    def __date_list_to_DOY(self,date_list):
+        '''
+        :param date_list: list of datetime objects
+        :return: list of DOY
+        '''
+        start_year = date_list[0].year
+        start_date = datetime.datetime(start_year, 1, 1)
+        date_delta = date_list - start_date + datetime.timedelta(days=1)
+        DOY = [date.days for date in date_delta]
+        return DOY
+
+    def __interp_values_to_DOY(self, values, date_list):
+        DOY = self.__date_list_to_DOY(date_list)
+        inx = DOY
+        iny = values
+        x_new = list(range(1, 366))
+        func = interpolate.interp1d(inx, iny, fill_value="extrapolate")
+        y_new = func(x_new)
+        return x_new, y_new
+
+    def __makediag3d(self,M):
+        b = np.zeros((M.shape[0], M.shape[1] * M.shape[1]))
+        b[:, ::M.shape[1] + 1] = M
+        return b.reshape((M.shape[0], M.shape[1], M.shape[1]))
+
+    def __get_starter_matrix(self,base_period_len, sample_count, frequencies_considered_count):
+        nr = min(2 * frequencies_considered_count + 1,
+                 sample_count)  # number of 2*+1 frequencies, or number of input images
+        mat = np.zeros(shape=(nr, sample_count))
+        mat[0, :] = 1
+        ang = 2 * np.pi * np.arange(base_period_len) / base_period_len
+        cs = np.cos(ang)
+        sn = np.sin(ang)
+        # create some standard sinus and cosinus functions and put in matrix
+        i = np.arange(1, frequencies_considered_count + 1)
+        ts = np.arange(sample_count)
+        for column in range(sample_count):
+            index = np.mod(i * ts[column], base_period_len)
+            # index looks like 000, 123, 246, etc, until it wraps around (for len(i)==3)
+            mat[2 * i - 1, column] = cs.take(index)
+            mat[2 * i, column] = sn.take(index)
+        return mat
+
+    def __hants(self,sample_count, inputs,
+              frequencies_considered_count=3,
+              outliers_to_reject='Hi',
+              low=0., high=255,
+              fit_error_tolerance=5.,
+              delta=0.1):
+        """
+        Function to apply the Harmonic analysis of time series applied to arrays
+        sample_count    = nr. of images (total number of actual samples of the time series)
+        base_period_len    = length of the base period, measured in virtual samples
+                (days, dekads, months, etc.)
+        frequencies_considered_count    = number of frequencies to be considered above the zero frequency
+        inputs     = array of input sample values (e.g. NDVI values)
+        ts    = array of size sample_count of time sample indicators
+                (indicates virtual sample number relative to the base period);
+                numbers in array ts maybe greater than base_period_len
+                If no aux file is used (no time samples), we assume ts(i)= i,
+                where i=1, ..., sample_count
+        outliers_to_reject  = 2-character string indicating rejection of high or low outliers
+                select from 'Hi', 'Lo' or 'None'
+        low   = valid range minimum
+        high  = valid range maximum (values outside the valid range are rejeced
+                right away)
+        fit_error_tolerance   = fit error tolerance (points deviating more than fit_error_tolerance from curve
+                fit are rejected)
+        dod   = degree of overdeterminedness (iteration stops if number of
+                points reaches the minimum required for curve fitting, plus
+                dod). This is a safety measure
+        delta = small positive number (e.g. 0.1) to suppress high amplitudes
+        """
+        # define some parameters
+        base_period_len = sample_count  #
+
+        # check which setting to set for outlier filtering
+        if outliers_to_reject == 'Hi':
+            sHiLo = -1
+        elif outliers_to_reject == 'Lo':
+            sHiLo = 1
+        else:
+            sHiLo = 0
+
+        nr = min(2 * frequencies_considered_count + 1,
+                 sample_count)  # number of 2*+1 frequencies, or number of input images
+
+        # create empty arrays to fill
+        outputs = np.zeros(shape=(inputs.shape[0], sample_count))
+
+        mat = self.__get_starter_matrix(base_period_len, sample_count, frequencies_considered_count)
+
+        # repeat the mat array over the number of arrays in inputs
+        # and create arrays with ones with shape inputs where high and low values are set to 0
+        mat = np.tile(mat[None].T, (1, inputs.shape[0])).T
+        p = np.ones_like(inputs)
+        p[(low >= inputs) | (inputs > high)] = 0
+        nout = np.sum(p == 0, axis=-1)  # count the outliers for each timeseries
+
+        # prepare for while loop
+        ready = np.zeros((inputs.shape[0]), dtype=bool)  # all timeseries set to false
+
+        dod = 1  # (2*frequencies_considered_count-1)  # Um, no it isn't :/
+        noutmax = sample_count - nr - dod
+        for _ in range(sample_count):
+            if ready.all():
+                break
+            # print '--------*-*-*-*',it.value, '*-*-*-*--------'
+            # multiply outliers with timeseries
+            za = np.einsum('ijk,ik->ij', mat, p * inputs)
+
+            # multiply mat with the multiplication of multiply diagonal of p with transpose of mat
+            diag = self.__makediag3d(p)
+            A = np.einsum('ajk,aki->aji', mat, np.einsum('aij,jka->ajk', diag, mat.T))
+            # add delta to suppress high amplitudes but not for [0,0]
+            A = A + np.tile(np.diag(np.ones(nr))[None].T, (1, inputs.shape[0])).T * delta
+            A[:, 0, 0] = A[:, 0, 0] - delta
+
+            # solve linear matrix equation and define reconstructed timeseries
+            zr = np.linalg.solve(A, za)
+            outputs = np.einsum('ijk,kj->ki', mat.T, zr)
+
+            # calculate error and sort err by index
+            err = p * (sHiLo * (outputs - inputs))
+            rankVec = np.argsort(err, axis=1, )
+
+            # select maximum error and compute new ready status
+            maxerr = np.diag(err.take(rankVec[:, sample_count - 1], axis=-1))
+            ready = (maxerr <= fit_error_tolerance) | (nout == noutmax)
+
+            # if ready is still false
+            if not ready.all():
+                j = rankVec.take(sample_count - 1, axis=-1)
+
+                p.T[j.T, np.indices(j.shape)] = p.T[j.T, np.indices(j.shape)] * ready.astype(
+                    int)  # *check
+                nout += 1
+
+        return outputs
 
 def sleep(t=1):
     time.sleep(t)
