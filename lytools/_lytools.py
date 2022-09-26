@@ -1541,6 +1541,21 @@ class Tools:
         df = df.reset_index(drop=True)
         return df
 
+    def date_to_DOY(self,date_list):
+        '''
+        :param date_list: list of datetime objects
+        :return: list of DOY
+        '''
+        start_year = date_list[0].year
+        start_date = datetime.datetime(start_year, 1, 1)
+        date_delta = date_list - start_date + datetime.timedelta(days=1)
+        DOY = [date.days for date in date_delta]
+        return DOY
+
+    def gen_colors(self,color_list_number,palette='Spectral'):
+        color_list = sns.color_palette(palette, color_list_number)
+        return color_list
+
 class SMOOTH:
     '''
     一些平滑算法
