@@ -3034,6 +3034,31 @@ class Pre_Process:
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
 
+    def climatology_anomaly(self, vals):
+        '''
+        juping
+        :param vals:
+        :return:
+        '''
+        pix_anomaly = []
+        climatology_means = []
+        for m in range(1, 13):
+            one_mon = []
+            for i in range(len(vals)):
+                mon = i % 12 + 1
+                if mon == m:
+                    one_mon.append(vals[i])
+            mean = np.nanmean(one_mon)
+            std = np.nanstd(one_mon)
+            climatology_means.append(mean)
+        for i in range(len(vals)):
+            mon = i % 12
+            mean_ = climatology_means[mon]
+            anomaly = vals[i] - mean_
+            pix_anomaly.append(anomaly)
+        pix_anomaly = np.array(pix_anomaly)
+        return pix_anomaly
+
     def z_score(self, vals):
         vals = np.array(vals)
         mean = np.nanmean(vals)
