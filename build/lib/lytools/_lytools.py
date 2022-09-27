@@ -1353,9 +1353,9 @@ class Tools:
         return matrix
         pass
 
-    def cmap_blend(self,color_list):
-        # color_list = ['#007F00', '#FFFCCA', '#793D8A']
-        cmap = sns.blend_palette(color_list, as_cmap=True)
+    def cmap_blend(self,color_list,as_cmap=True,n_colors=6):
+        # color_list = ['r', 'g', 'b']
+        cmap = sns.blend_palette(color_list, as_cmap=as_cmap, n_colors=n_colors)
         return cmap
 
     def cmap_diverging(self,start_color_hue,end_color_hue,saturation=100,lightness=40):
@@ -1555,6 +1555,10 @@ class Tools:
     def gen_colors(self,color_list_number,palette='Spectral'):
         color_list = sns.color_palette(palette, color_list_number)
         return color_list
+
+    def del_columns(self,df,columns:list):
+        df = df.drop(columns=columns,axis=1)
+        return df
 
 class SMOOTH:
     '''
@@ -3301,18 +3305,26 @@ class Plot:
         plt.fill_between(x, y1, y2, zorder=-99,
                          color=c, edgecolor=None, alpha=0.2, **kwargs)
 
-    def plot_hist_smooth(self, arr, interpolate_window=5, **kwargs):
+    def plot_hist_smooth(self, arr, interpolate_window=5,range=None, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
 
-        n1, x1, patch = plt.hist(arr, weights=weights, **kwargs)
+        n1, x1, patch = plt.hist(arr, weights=weights, range=range, **kwargs)
+        arr = np.array(arr)
+        if range is None:
+            min_v = np.nanmin(arr)
+            max_v = np.nanmax(arr)
+        else:
+            min_v = range[0]
+            max_v = range[1]
+        arr[arr > max_v] = np.nan
+        arr[arr < min_v] = np.nan
+        arr = arr[~np.isnan(arr)]
         density1 = stats.gaussian_kde(arr)
         y1 = density1(x1)
-        coe = max(n1) / max(y1)
+        coe = np.max(n1) / np.max(y1)
         y1 = y1 * coe
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1, y1
-
-        pass
 
 
 class ToRaster:
