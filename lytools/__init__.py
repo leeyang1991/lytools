@@ -1,5 +1,5 @@
 # coding='utf-8'
-__version__ = '0.0.70'
+__version__ = '0.0.71'
 
 from ._lytools import *
 from outdated import check_outdated

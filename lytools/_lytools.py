@@ -633,6 +633,7 @@ class Tools:
         self.show_df_all_columns()
         print(df.head(n))
         print('Dataframe length:',len(df))
+        print('Dataframe columns length:',len(df.columns))
         if pause_flag == 1:
             pause()
 
@@ -936,7 +937,17 @@ class Tools:
                 val = dic_i[key]
                 dic_all_transform[key].update({var_name: val})
         df = self.dic_to_df(dic_all_transform, 'pix')
-        df = df.dropna(how='all', subset=var_name_list)
+        valid_var_name_list = []
+        not_valid_var_name_list = []
+        for var_name in var_name_list:
+            if var_name in df.columns:
+                valid_var_name_list.append(var_name)
+            else:
+                not_valid_var_name_list.append(var_name)
+        df = df.dropna(how='all', subset=valid_var_name_list)
+        not_valid_var_name_list.sort()
+        for var_name in not_valid_var_name_list:
+            df[var_name] = np.nan
         return df
 
     def add_spatial_dic_to_df(self, df, dic, key_name):
@@ -3062,6 +3073,23 @@ class Pre_Process:
             pix_anomaly.append(anomaly)
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
+
+    def climotology_mean_std(self,vals):
+        result_dict = {}
+        climatology_means = []
+        climatology_std = []
+        for m in range(1, 13):
+            one_mon = []
+            for i in range(len(vals)):
+                mon = i % 12 + 1
+                if mon == m:
+                    one_mon.append(vals[i])
+            mean = np.nanmean(one_mon)
+            std = np.nanstd(one_mon)
+            climatology_means.append(mean)
+            climatology_std.append(std)
+            result_dict[m] = {'mean':mean,'std':std}
+        return result_dict
 
     def z_score(self, vals):
         vals = np.array(vals)
