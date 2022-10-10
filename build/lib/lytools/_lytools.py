@@ -1137,13 +1137,11 @@ class Tools:
 
         return annual_val_list
 
-
     def monthly_to_annual_with_datetime_obj(self,vals,date_range,grow_season:list, method='mean'):
         if grow_season == None:
             grow_season = list(range(12))
         else:
             grow_season = np.array(grow_season, dtype=int)
-            grow_season = grow_season - 1
             if grow_season[0] < 0:
                 raise UserWarning(f'Error grow_season:{grow_season}')
         year_list = []
@@ -1195,6 +1193,18 @@ class Tools:
         dic = dict(zip(date_list, monthly_val))
 
         return dic
+
+    def month_index_to_date_obj(self,month_index,init_date_obj):
+        year = init_date_obj.year
+        month = init_date_obj.month
+        end_month = month + month_index
+        end_year = year + int(end_month/12)
+        end_month = end_month%12
+        if end_month == 0:
+            end_month = 12
+            end_year -= 1
+        end_date_obj = datetime.datetime(end_year,end_month,1)
+        return end_date_obj
 
     def unzip(self, zipfolder, outdir):
         # zipfolder = join(self.datadir,'zips')
@@ -1570,6 +1580,14 @@ class Tools:
     def del_columns(self,df,columns:list):
         df = df.drop(columns=columns,axis=1)
         return df
+
+    def bootstrap_data(self,data:pd.DataFrame,n:int,ratio:float):
+        if not 0 < ratio < 1:
+            raise ValueError('ratio must be between 0 and 1')
+        data_len = len(data)
+        for i in range(n):
+            bootstraped_data = data.sample(n=int(data_len * ratio), replace=True)
+            yield bootstraped_data
 
 class SMOOTH:
     '''
