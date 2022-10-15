@@ -3372,6 +3372,51 @@ class Plot:
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1, y1
 
+    def multi_step_pdf(self,df, pdf_colname ,bin_colname, bins, pdf_bin_n=40,pdf_range=None, discard_limit_n=10,
+                       blend_color_list=('#ABD3E0','#EFDDE2','#DC9AA2')):
+        flag = 0
+        df_group,bins_list_str = Tools().df_bin(df,bin_colname,bins)
+        color_len = 0
+        for name,df_group_i in df_group:
+            vals = df_group_i[pdf_colname].tolist()
+            vals = np.array(vals)
+            if len(vals) <= discard_limit_n:
+                continue
+            color_len += 1
+        # exit()
+        color_list = Tools().cmap_blend(blend_color_list,as_cmap=False,n_colors=color_len)
+        alpha_list = np.linspace(0.5,1,color_len)
+        fig, ax = plt.subplots(1)
+        delta_y = 0.1
+        label_list = []
+        y_tick_list = []
+        vals_mean_list = []
+        for name,df_group_i in df_group:
+            label = str(name.left) + '-' + str(name.right)
+            vals = df_group_i[pdf_colname].tolist()
+            vals = np.array(vals)
+            # print(label,len(vals))
+            if len(vals) <= discard_limit_n:
+                continue
+            vals_mean = np.nanmedian(vals)
+            vals_mean_list.append(vals_mean)
+            x, y = Plot().plot_hist_smooth(vals, bins=pdf_bin_n, alpha=0., range=pdf_range, color=color_list[flag],
+                                         linewidth=2)
+            # ax.plot(x, y, label=label, color=color_list[flag])
+            ax.plot(x, y+delta_y*flag, color='k',zorder=100)
+            y_tick_list.append(delta_y*flag)
+            ax.fill(x, y+delta_y*flag, color=color_list[flag], label=label,zorder=-flag)
+            label_list.append(label)
+            flag += 1
+        # plt.legend()
+        plt.xlabel(pdf_colname)
+        plt.ylabel('Density')
+        plt.yticks(y_tick_list,label_list)
+        y_tick_list = np.array(y_tick_list)
+        plt.scatter(vals_mean_list,y_tick_list+0.05,color='k',zorder=100)
+        # plt.tight_layout()
+        # plt.show()
+
 
 class ToRaster:
     def __init__(self):
