@@ -3395,7 +3395,7 @@ class Plot:
             label = str(name.left) + '-' + str(name.right)
             vals = df_group_i[pdf_colname].tolist()
             vals = np.array(vals)
-            # print(label,len(vals))
+            print(bin_colname,label,len(vals))
             if len(vals) <= discard_limit_n:
                 continue
             vals_mean = np.nanmedian(vals)
@@ -3410,7 +3410,7 @@ class Plot:
             flag += 1
         # plt.legend()
         plt.xlabel(pdf_colname)
-        plt.ylabel('Density')
+        plt.ylabel(bin_colname)
         plt.yticks(y_tick_list,label_list)
         y_tick_list = np.array(y_tick_list)
         plt.scatter(vals_mean_list,y_tick_list+0.05,color='k',zorder=100)
@@ -3681,42 +3681,112 @@ class HANTS:
         '''
         pass
 
-    def hants_interpolate(self, values_list, dates_list, valid_range): # todo: need to change to 1D values
+    def __left_consecutive_index(self,values_list,invalid_value):
+        left_consecutive_non_valid_index = []
+        for i in range(len(values_list)):
+            if values_list[i] == invalid_value:
+                left_consecutive_non_valid_index.append(i)
+            else:
+                break
+        return left_consecutive_non_valid_index
+
+    def __right_consecutive_index(self,values_list,invalid_value):
+        right_consecutive_non_valid_index = []
+        for i in range(len(values_list) - 1, -1, -1):
+            if values_list[i] == invalid_value:
+                right_consecutive_non_valid_index.append(i)
+            else:
+                break
+        return right_consecutive_non_valid_index
+
+    def hants_interpolate(self, values_list, dates_list, valid_range,nan_value=np.nan):
         '''
-        :param values_list: 2D array of values
-        :param dates_list:  2D array of dates, datetime objects
-        :param valid_range: min and max valid values, (min, max)
-        :return: Dictionary of smoothed values, key: year, value: smoothed value
+        :param values_list: 1D, list of values, multi years
+        :param dates_list:  1D, list of dates, corresponding to values_list
+        :param valid_range: tuple, (low,high), valid range of values
+        :param nan_value: float, nan value
+        :return: Dict, {year:DOY_values}
         '''
+        values_list = np.array(values_list)
+        values_list[np.isnan(values_list)] = valid_range[0]
         year_list = []
         for date in dates_list:
-            year = date[0].year
+            year = date.year
             if year not in year_list:
                 year_list.append(year)
-        values_list = np.array(values_list)
-        std_list = []
-        for vals in values_list:
-            std = np.std(vals)
-            std_list.append(std)
-        std = np.mean(std_list)
-        std = 2. * std # larger than twice the standard deviation of the input data is rejected
+        values_dict = dict(zip(dates_list, values_list))
+        annual_date_dict = {}
+        for date in values_dict:
+            year = date.year
+            if year not in annual_date_dict:
+                annual_date_dict[year] = []
+            annual_date_dict[year].append(date)
+        _values_list = []
+        _dates_list = []
+        for year in annual_date_dict:
+            date_list_i = []
+            for date in annual_date_dict[year]:
+                date_list_i.append(date)
+            date_list_i.sort()
+            value_list_i = []
+            for date in date_list_i:
+                value_list_i.append(values_dict[date])
+            date_list_i = np.array(date_list_i)
+            value_list_i = np.array(value_list_i)
+            _values_list.append(value_list_i)
+            _dates_list.append(date_list_i)
+        _values_list = np.array(_values_list)
+        _dates_list = np.array(_dates_list)
+        std_i = np.mean(_values_list)
+        std = 2. * std_i # larger than twice the standard deviation of the input data is rejected
         interpolated_values_list = []
-        for i,values in enumerate(values_list):
-            dates = dates_list[i]
+        for i,values in enumerate(_values_list):
+            dates = _dates_list[i]
             xnew, ynew = self.__interp_values_to_DOY(values, dates)
+            # print(xnew)
+            # print(ynew)
+            # print('---')
+            # plt.plot(xnew, ynew, 'o')
+            # plt.show()
             interpolated_values_list.append(ynew)
+
 
         interpolated_values_list = np.array(interpolated_values_list)
         results = HANTS().__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0], high=valid_range[1],
                                 fit_error_tolerance=std)
-        # plt.imshow(interpolated_values_list, aspect='auto',vmin=0,vmax=3)
+        results_new = []
+        for i in range(len(results)):
+            results_i = results[i]
+            left_consecutive_non_valid_index = self.__left_consecutive_index(interpolated_values_list[i],valid_range[0])
+            # print(left_consecutive_non_valid_index)
+            right_consecutive_non_valid_index = self.__right_consecutive_index(interpolated_values_list[i],valid_range[0])
+            results_i_new = []
+            for j in range(len(results_i)):
+                if j in left_consecutive_non_valid_index:
+                    results_i_new.append(nan_value)
+                elif j in right_consecutive_non_valid_index:
+                    results_i_new.append(nan_value)
+                else:
+                    if results_i[j] < valid_range[0]:
+                        results_i_new.append(nan_value)
+                        continue
+                    elif results_i[j] > valid_range[1]:
+                        results_i_new.append(nan_value)
+                        continue
+                    else:
+                        results_i_new.append(results_i[j])
+            results_new.append(results_i_new)
+            # plt.plot(results_i_new)
+            # plt.plot(interpolated_values_list[i])
+            # plt.show()
+        # plt.imshow(interpolated_values_list, aspect='auto')
         # plt.colorbar()
         #
         # plt.figure()
-        # plt.imshow(results, aspect='auto',vmin=0,vmax=3)
+        # plt.imshow(results_new, aspect='auto')
         # plt.colorbar()
         # plt.show()
-        results_dict = dict(zip(year_list, results))
+        results_dict = dict(zip(year_list, results_new))
         return results_dict
 
     def __date_list_to_DOY(self,date_list):
