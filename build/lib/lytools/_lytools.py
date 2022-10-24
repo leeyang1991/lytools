@@ -2823,7 +2823,16 @@ class KDE_plot:
             return a, b, r, p
 
     def plot_scatter_hex(self,x,y,kind="hex", color="#4CB391", xlim=None, ylim=None, gridsize=80):
-        sns.jointplot(x=x, y=y, kind="hex", color="#4CB391", xlim=xlim, ylim=ylim, gridsize=gridsize)
+        df_temp = pd.DataFrame()
+        df_temp['x'] = x
+        df_temp['y'] = y
+        df_temp = df_temp[df_temp['x'] > xlim[0]]
+        df_temp = df_temp[df_temp['x'] < xlim[1]]
+        df_temp = df_temp[df_temp['y'] > ylim[0]]
+        df_temp = df_temp[df_temp['y'] < ylim[1]]
+        X = df_temp['x'].values
+        Y = df_temp['y'].values
+        sns.jointplot(x=X, y=Y, kind="hex", color="#4CB391", xlim=xlim, ylim=ylim, gridsize=gridsize)
 
     def cmap_with_transparency(self, cmap, min_alpha=0., max_alpha=0.5):
         ncolors = 256
