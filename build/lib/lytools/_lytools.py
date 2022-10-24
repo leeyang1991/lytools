@@ -2015,6 +2015,34 @@ class DIC_and_TIF:
             fpath = join(outdir, fname)
             self.pix_dic_to_tif(spatial_dic_i, fpath)
 
+    def pix_dic_to_tif_every_time_stamp_dict(self, spatial_dic, outdir):
+        '''
+        :param spatial_dic: {pix1:{key1:value,key2:value},
+                             pix2:{key1:value,key2:value}}
+        :param outdir:
+        :return:
+        '''
+        Tools().mkdir(outdir)
+        ## check values number
+        keys_number_list = []
+        for pix in spatial_dic:
+            dict_i = spatial_dic[pix]
+            keys = list(dict_i.keys())
+            for key in keys:
+                if key not in keys_number_list:
+                    keys_number_list.append(key)
+        keys_number_list.sort()
+        for key in tqdm(keys_number_list):
+            spatial_dic_i = {}
+            for pix in spatial_dic:
+                if not key in spatial_dic[pix]:
+                    continue
+                val = spatial_dic[pix][key]
+                spatial_dic_i[pix] = val
+            fname = f'{key}.tif'
+            fpath = join(outdir, fname)
+            self.pix_dic_to_tif(spatial_dic_i, fpath)
+
     def spatial_tif_to_lon_lat_dic(self, temp_dir):
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
