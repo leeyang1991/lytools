@@ -2854,10 +2854,12 @@ class KDE_plot:
         df_temp = pd.DataFrame()
         df_temp['x'] = x
         df_temp['y'] = y
-        df_temp = df_temp[df_temp['x'] > xlim[0]]
-        df_temp = df_temp[df_temp['x'] < xlim[1]]
-        df_temp = df_temp[df_temp['y'] > ylim[0]]
-        df_temp = df_temp[df_temp['y'] < ylim[1]]
+        if not xlim == None:
+            df_temp = df_temp[df_temp['x'] > xlim[0]]
+            df_temp = df_temp[df_temp['x'] < xlim[1]]
+        if not ylim == None:
+            df_temp = df_temp[df_temp['y'] > ylim[0]]
+            df_temp = df_temp[df_temp['y'] < ylim[1]]
         X = df_temp['x'].values
         Y = df_temp['y'].values
         sns.jointplot(x=X, y=Y, kind="hex", color="#4CB391", xlim=xlim, ylim=ylim, gridsize=gridsize)
