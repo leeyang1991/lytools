@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 lytools/__init__.py

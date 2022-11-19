@@ -687,7 +687,8 @@ class Tools:
 
     def nan_correlation(self, val1_list, val2_list):
         # pearson correlation of val1 and val2, which contain Nan
-
+        if not len(val1_list) == len(val2_list):
+            raise UserWarning('val1_list and val2_list must have the same length')
         val1_list_new = []
         val2_list_new = []
         for i in range(len(val1_list)):
@@ -707,6 +708,8 @@ class Tools:
         return r, p
 
     def nan_line_fit(self, val1_list, val2_list):
+        if not len(val1_list) == len(val2_list):
+            raise UserWarning('val1_list and val2_list must have the same length')
         K = KDE_plot()
         val1_list_new = []
         val2_list_new = []
@@ -2382,7 +2385,7 @@ class DIC_and_TIF:
             spatial, originX, originY, pixelWidth, pixelHeight
         return array, longitude_start, latitude_start, pixelWidth, pixelHeight
 
-    def unify_raster(self, in_tif, out_tif, ndv=-999999.):
+    def unify_raster(self, in_tif, out_tif, ndv=-999999):
         '''
         Unify raster to the extend of global (-180 180 90 -90)
         '''
@@ -2436,6 +2439,17 @@ class DIC_and_TIF:
         array_unify_left_right = np.array(array_unify_left_right)
         newRasterfn = out_tif
         ToRaster().array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
+
+    def unify_raster1(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'): # todo: need to be tested
+        row = len(self.arr_template)
+        col = len(self.arr_template[0])
+        sY = self.originY
+        sX = self.originX
+        eY = sY + row * self.pixelHeight
+        eX = sX + col * self.pixelWidth
+        extent = [sX, eY, eX, sY]
+        dataset = gdal.Open(in_tif)
+        gdal.Warp(out_tif, dataset, srcSRS=srcSRS, dstSRS=dstSRS, outputBounds=extent)
 
     def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
         dataset = gdal.Open(in_tif)
@@ -3651,66 +3665,6 @@ class ToRaster:
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
-    def unify_raster(self, in_tif, out_tif, ndv=-999999, GDT_Byte=False):
-        '''
-        Unify raster to the extend of global (-180 180 90 -90)
-        '''
-        if GDT_Byte:
-            insert_value = 255
-        else:
-            insert_value = ndv
-        array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(in_tif)
-        # insert values to row
-        top_line_num = abs((90. - originY) / pixelHeight)
-        bottom_line_num = abs((90. + originY + pixelHeight * len(array)) / pixelHeight)
-        top_line_num = int(round(top_line_num, 0))
-        bottom_line_num = int(round(bottom_line_num, 0))
-        nan_array_insert = np.ones_like(array[0]) * insert_value
-        top_array_insert = []
-        for i in range(top_line_num):
-            top_array_insert.append(nan_array_insert)
-        bottom_array_insert = []
-        for i in range(bottom_line_num):
-            bottom_array_insert.append(nan_array_insert)
-        bottom_array_insert = np.array(bottom_array_insert)
-        if len(top_array_insert) != 0:
-            arr_temp = np.insert(array, obj=0, values=top_array_insert, axis=0)
-        else:
-            arr_temp = array
-        if len(bottom_array_insert) != 0:
-            array_unify_top_bottom = np.vstack((arr_temp, bottom_array_insert))
-        else:
-            array_unify_top_bottom = arr_temp
-
-        # insert values to column
-        left_line_num = abs((-180. - originX) / pixelWidth)
-        right_line_num = abs((180. - (originX + pixelWidth * len(array[0]))) / pixelWidth)
-        left_line_num = int(round(left_line_num, 0))
-        right_line_num = int(round(right_line_num, 0))
-        left_array_insert = []
-        right_array_insert = []
-        for i in range(left_line_num):
-            left_array_insert.append(insert_value)
-        for i in range(right_line_num):
-            right_array_insert.append(insert_value)
-
-        array_unify_left_right = []
-        for i in array_unify_top_bottom:
-            if len(left_array_insert) != 0:
-                arr_temp = np.insert(i, obj=0, values=left_array_insert, axis=0)
-            else:
-                arr_temp = i
-            if len(right_array_insert) != 0:
-                array_temp1 = np.hstack((arr_temp, right_array_insert))
-            else:
-                array_temp1 = arr_temp
-            array_unify_left_right.append(array_temp1)
-        array_unify_left_right = np.array(array_unify_left_right)
-        newRasterfn = out_tif
-        if GDT_Byte:
-            self.array2raster_GDT_Byte(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right)
-        else:
-            self.array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
 class HANTS:
 
@@ -3774,9 +3728,13 @@ class HANTS:
             value_list_i = np.array(value_list_i)
             _values_list.append(value_list_i)
             _dates_list.append(date_list_i)
-        _values_list = np.array(_values_list)
-        _dates_list = np.array(_dates_list)
-        std_i = np.mean(_values_list)
+        # _values_list = np.array(_values_list)
+        # _dates_list = np.array(_dates_list)
+        _values_list_1 = []
+        for v in _values_list:
+            for vi in v:
+                _values_list_1.append(vi)
+        std_i = np.nanmean(_values_list_1)
         std = 2. * std_i # larger than twice the standard deviation of the input data is rejected
         interpolated_values_list = []
         for i,values in enumerate(_values_list):
@@ -3967,6 +3925,56 @@ class HANTS:
                 nout += 1
 
         return outputs
+
+
+class Dataframe_per_value:
+
+    def __init__(self,df,variable_list,start_year,end_year):
+        self.start_year = start_year
+        self.end_year = end_year
+        self.variable_list = variable_list
+        self.df_in = df
+        pass
+
+    def init_void_dataframe(self):
+        void_spatial_dict = DIC_and_TIF().void_spatial_dic()
+        year_list = list(range(self.start_year, self.end_year + 1))
+        year_list_all = []
+        pix_list_all = []
+        for pix in void_spatial_dict:
+            for year in year_list:
+                year_list_all.append(year)
+                pix_list_all.append(pix)
+        df = pd.DataFrame()
+        df['year'] = year_list_all
+        df['pix'] = pix_list_all
+        return df,year_list
+
+    def dataframe_per_value(self):
+        variable_list = self.variable_list
+        df_,year_list = self.init_void_dataframe()
+        pix_list = Tools().get_df_unique_val_list(df_, 'pix')
+        nan_list = [np.nan] * len(year_list)
+        all_data = {}
+        for col in variable_list:
+            spatial_dict = Tools().df_to_spatial_dic(self.df_in,col)
+            all_data[col] = spatial_dict
+        for var_i in variable_list:
+            spatial_dict_i = all_data[var_i]
+            val_list_all = []
+            for pix in tqdm(pix_list,desc=var_i):
+                if not pix in spatial_dict_i:
+                    val_list_all.extend(nan_list)
+                    continue
+                vals = spatial_dict_i[pix]
+                if not len(vals) == len(year_list):
+                    val_list_all.extend(nan_list)
+                    continue
+                for i,v in enumerate(vals):
+                    val_list_all.append(v)
+            df_[var_i] = val_list_all
+        df = df_.dropna(subset=variable_list,how='all')
+        self.df = df
 
 def sleep(t=1):
     time.sleep(t)
