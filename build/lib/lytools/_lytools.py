@@ -3934,6 +3934,7 @@ class Dataframe_per_value:
         self.end_year = end_year
         self.variable_list = variable_list
         self.df_in = df
+        self.dataframe_per_value()
         pass
 
     def init_void_dataframe(self):
@@ -3967,6 +3968,9 @@ class Dataframe_per_value:
                     val_list_all.extend(nan_list)
                     continue
                 vals = spatial_dict_i[pix]
+                if type(vals) == float:
+                    val_list_all.extend(nan_list)
+                    continue
                 if not len(vals) == len(year_list):
                     val_list_all.extend(nan_list)
                     continue
