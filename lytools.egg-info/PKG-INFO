@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: lytools
-Version: 0.0.79
+Version: 0.0.80
 Home-page: https://github.com/leeyang1991/lytools
 Author: Yang Lee
 Author-email: leeyang1991@gmail.com
@@ -9,6 +9,6 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 
 # lytools
-data processing tools
-
+### Toolbox for data processing
+#### alpha version
 pip install lytools

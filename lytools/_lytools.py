@@ -685,7 +685,7 @@ class Tools:
 
         return in_list
 
-    def nan_correlation(self, val1_list, val2_list):
+    def nan_correlation(self, val1_list, val2_list, method='pearson'):
         # pearson correlation of val1 and val2, which contain Nan
         if not len(val1_list) == len(val2_list):
             raise UserWarning('val1_list and val2_list must have the same length')
@@ -703,7 +703,14 @@ class Tools:
         if len(val1_list_new) <= 3:
             r, p = np.nan, np.nan
         else:
-            r, p = stats.pearsonr(val1_list_new, val2_list_new)
+            if method == 'pearson':
+                r, p = stats.pearsonr(val1_list_new, val2_list_new)
+            elif method == 'spearman':
+                r, p = stats.spearmanr(val1_list_new, val2_list_new)
+            elif method == 'kendall':
+                r, p = stats.kendalltau(val1_list_new, val2_list_new)
+            else:
+                raise UserWarning('method must be pearson or spearman or kendall')
 
         return r, p
 
@@ -1591,6 +1598,23 @@ class Tools:
         for i in range(n):
             bootstraped_data = data.sample(n=int(data_len * ratio), replace=True)
             yield bootstraped_data
+
+    def set_Chinese_available_fonts(self):
+        from matplotlib.font_manager import FontManager
+        import subprocess
+        fm = FontManager()
+        mat_fonts = set(f.name for f in fm.ttflist)
+        # print(mat_fonts)
+        output = subprocess.check_output(
+            'fc-list :lang=zh -f "%{family}\n"', shell=True)  # 获取字体列表
+        output = output.decode('utf-8')
+
+        zh_fonts = set(f.split(',', 1)[0] for f in output.split('\n'))
+        available = mat_fonts & zh_fonts
+        print('*' * 10, '可用的字体', '*' * 10)
+        for f in available:
+            print(f)
+        plt.rcParams["font.sans-serif"] = list(available)[0]
 
 class SMOOTH:
     '''
@@ -3927,7 +3951,7 @@ class HANTS:
         return outputs
 
 
-class Dataframe_per_value:
+class Dataframe_per_value_transform:
 
     def __init__(self,df,variable_list,start_year,end_year):
         self.start_year = start_year
@@ -3960,10 +3984,10 @@ class Dataframe_per_value:
         for col in variable_list:
             spatial_dict = Tools().df_to_spatial_dic(self.df_in,col)
             all_data[col] = spatial_dict
-        for var_i in variable_list:
+        for var_i in tqdm(variable_list):
             spatial_dict_i = all_data[var_i]
             val_list_all = []
-            for pix in tqdm(pix_list,desc=var_i):
+            for pix in pix_list:
                 if not pix in spatial_dict_i:
                     val_list_all.extend(nan_list)
                     continue
