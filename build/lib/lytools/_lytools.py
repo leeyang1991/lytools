@@ -78,13 +78,23 @@ class Tools:
             else:
                 os.mkdir(dir)
 
-    def mk_class_dir(self, class_name, result_root_this_script):
-        this_class_arr = join(result_root_this_script, f'arr/{class_name}/')
-        this_class_tif = join(result_root_this_script, f'tif/{class_name}/')
-        this_class_png = join(result_root_this_script, f'png/{class_name}/')
-        self.mkdir(this_class_arr, force=True)
-        self.mkdir(this_class_tif, force=True)
-        self.mkdir(this_class_png, force=True)
+    def mk_class_dir(self, class_name, result_root_this_script,mode=1):
+        if mode == 1:
+            this_class_arr = join(result_root_this_script, f'arr/{class_name}/')
+            this_class_tif = join(result_root_this_script, f'tif/{class_name}/')
+            this_class_png = join(result_root_this_script, f'png/{class_name}/')
+            self.mkdir(this_class_arr, force=True)
+            self.mkdir(this_class_tif, force=True)
+            self.mkdir(this_class_png, force=True)
+        elif mode == 2:
+            this_class_arr = join(result_root_this_script, f'{class_name}/arr')
+            this_class_tif = join(result_root_this_script, f'{class_name}/tif')
+            this_class_png = join(result_root_this_script, f'{class_name}/png')
+            self.mkdir(this_class_arr, force=True)
+            self.mkdir(this_class_tif, force=True)
+            self.mkdir(this_class_png, force=True)
+        else:
+            raise Exception('mode error')
 
         return this_class_arr, this_class_tif, this_class_png
 
@@ -1216,6 +1226,24 @@ class Tools:
         end_date_obj = datetime.datetime(end_year,end_month,1)
         return end_date_obj
 
+    def pick_gs_monthly_data(self,vals,gs):
+        if len(vals) % 12 != 0:
+            raise ValueError('the lenth of vals is not a multiple of 12')
+        vals_year_number = len(vals) // 12
+        start_year = 1982
+        end_year = start_year + vals_year_number - 1
+        vals_dict = self.monthly_vals_to_date_dic(vals,start_year,end_year)
+        picked_dates = []
+        for y in range(start_year,end_year+1):
+            for m in gs:
+                picked_dates.append(f'{y:04d}{m:02d}')
+        gs_vals = []
+        for date in picked_dates:
+            val = vals_dict[date]
+            gs_vals.append(val)
+        gs_vals = np.array(gs_vals)
+        return gs_vals
+
     def unzip(self, zipfolder, outdir):
         # zipfolder = join(self.datadir,'zips')
         # outdir = join(self.datadir,'unzip')
@@ -1615,6 +1643,28 @@ class Tools:
         for f in available:
             print(f)
         plt.rcParams["font.sans-serif"] = list(available)[0]
+
+    def lag_correlation(self,earlier,later,lag,method='pearson'):
+        '''
+        earlier value can affect later value
+        e.g. earlier SPEI, later NDVI
+        :return: correlation
+        '''
+        if lag == 0:
+            r, p = self.nan_correlation(earlier, later, method)
+        else:
+            later = later[lag:]
+            earlier = earlier[:-lag]
+            r,p = self.nan_correlation(earlier, later, method)
+        return r,p
+    
+    def df_groupby(self,df,col):
+        assert col in df.columns
+        df_groupby = df.groupby(col)
+        df_group_dict = {}
+        for name,group in df_groupby:
+            df_group_dict[name] = group
+        return df_group_dict
 
 class SMOOTH:
     '''
