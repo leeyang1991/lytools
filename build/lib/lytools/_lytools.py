@@ -1449,7 +1449,7 @@ class Tools:
         delta = date2 - date1
         return delta.days
 
-    def nc_to_tif(self,fname,var_name,outdir):
+    def nc_to_tif(self, fname, var_name, outdir):
         try:
             ncin = Dataset(fname, 'r')
             print(ncin.variables.keys())
@@ -1549,20 +1549,18 @@ class Tools:
                 continue
             arr = data[time_i]
             arr = np.array(arr)
-            lon_list = []
-            lat_list = []
-            value_list = []
-            for i in range(len(arr)):
-                for j in range(len(arr[i])):
-                    lon_i = xx[i][j]
-                    if lon_i > 180:
-                        lon_i -= 360
-                    lat_i = yy[i][j]
-                    value_i = arr[i][j]
-                    lon_list.append(lon_i)
-                    lat_list.append(lat_i)
-                    value_list.append(value_i)
-            DIC_and_TIF().lon_lat_val_to_tif(lon_list, lat_list, value_list, outpath)
+            lon_list = xx.flatten()
+            lat_list = yy.flatten()
+            val_list = arr.flatten()
+            lon_list[lon_list > 180] = lon_list[lon_list > 180] - 360
+            df = pd.DataFrame()
+            df['lon'] = lon_list
+            df['lat'] = lat_list
+            df['val'] = val_list
+            lon_list_new = df['lon'].tolist()
+            lat_list_new = df['lat'].tolist()
+            val_list_new = df['val'].tolist()
+            DIC_and_TIF().lon_lat_val_to_tif(lon_list_new, lat_list_new, val_list_new, outpath)
 
     def uncertainty_err(self,vals):
         mean = np.nanmean(vals)
@@ -1570,6 +1568,26 @@ class Tools:
         up, bottom = stats.t.interval(0.95, len(vals) - 1, loc=mean, scale=std / np.sqrt(len(vals)))
         err = mean - bottom
         return err, up, bottom
+
+    def uncertainty_err_2d(self,vals, axis=0):
+        vals = np.array(vals)
+        if axis == 0:
+            vals_T = vals.T
+            vals_err = []
+            for val in tqdm(vals_T,desc='uncertainty'):
+                err, _, _ = self.uncertainty_err(val)
+                vals_err.append(err)
+            vals_err = np.array(vals_err)
+        elif axis == 1:
+            vals_T = vals
+            vals_err = []
+            for val in tqdm(vals_T,desc='uncertainty'):
+                err, _, _ = self.uncertainty_err(val)
+                vals_err.append(err)
+            vals_err = np.array(vals_err)
+        else:
+            raise Exception('axis must be 0 or 1')
+        return vals_err
 
     def df_bin(self,df,col,bins):
         df_copy = df.copy()
