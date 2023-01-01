@@ -22,5 +22,6 @@ setup(
     'seaborn',
     'sklearn',
     'requests',
+    'outdated',
     ],
 )
