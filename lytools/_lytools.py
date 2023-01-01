@@ -635,6 +635,45 @@ class Tools:
                 outFeature.Destroy()
             outFeature = None
 
+    def line_to_shp(self, inputlist, outSHPfn):
+        ############重要#################
+        gdal.SetConfigOption("SHAPE_ENCODING", "GBK")
+        ############重要#################
+        # start,end,outSHPfn,val1,val2,val3,val4,val5
+        # _,_,_,_=start[1],start[0],end[0],end[1]
+
+        shpDriver = ogr.GetDriverByName("ESRI Shapefile")
+        if os.path.exists(outSHPfn):
+            shpDriver.DeleteDataSource(outSHPfn)
+        outDataSource = shpDriver.CreateDataSource(outSHPfn)
+        outLayer = outDataSource.CreateLayer(outSHPfn, geom_type=ogr.wkbLineString)
+
+        # create line geometry
+        line = ogr.Geometry(ogr.wkbLineString)
+
+        for i in range(len(inputlist)):
+            start = inputlist[i][0]
+            end = inputlist[i][1]
+
+            line.AddPoint(start[0], start[1])
+            line.AddPoint(end[0], end[1])
+
+            featureDefn = outLayer.GetLayerDefn()
+            outFeature = ogr.Feature(featureDefn)
+            outFeature.SetGeometry(line)
+            outLayer.CreateFeature(outFeature)
+            outFeature.Destroy()
+            line = ogr.Geometry(ogr.wkbLineString)
+            outFeature = None
+
+        # define the spatial reference, WGS84
+        spatialRef = osr.SpatialReference()
+        spatialRef.ImportFromEPSG(4326)
+        spatialRef.MorphToESRI()
+        file = open(outSHPfn[:-4] + '.prj', 'w')
+        file.write(spatialRef.ExportToWkt())
+        file.close()
+
     def show_df_all_columns(self):
         pd.set_option('display.max_columns', None)
         pass
