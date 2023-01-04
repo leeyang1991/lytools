@@ -7,3 +7,4 @@ pandas
 seaborn
 sklearn
 requests
+outdated
