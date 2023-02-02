@@ -3653,7 +3653,7 @@ class Plot:
 
 
 
-    def plot_ortho(self,fpath,ax=None,cmap=None):
+    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None):
         '''
         :param fpath: projected tif file
         :param ax: matplotlib ax
@@ -3678,26 +3678,27 @@ class Plot:
         lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
         lon_list, lat_list = np.meshgrid(lon_list, lat_list)
         m = Basemap(projection='ortho', lon_0=0, lat_0=90., ax=ax, resolution='l')
-        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=-0.4, vmax=0.4)
-        clip_circle = mpatches.Circle(xy=[originY1, originY1], radius=originY1 * np.cos(np.pi / 6),
-                                      facecolor='None', edgecolor='k', zorder=100, lw=2.5)
-        clip_circle1 = mpatches.Circle(xy=[originY1, originY1], radius=originY1,
+        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
+        clip_circle = mpatches.Circle(xy=(originY1, originY1), radius=originY1 * np.cos(np.pi / 6),
+                                      facecolor='None', edgecolor='k', zorder=100, lw=1.5)
+        clip_circle1 = mpatches.Circle(xy=(originY1, originY1), radius=originY1,
                                        facecolor='None', edgecolor='w', zorder=100, lw=6)
         ax.add_patch(clip_circle)
         ax.add_patch(clip_circle1)
-        m.drawparallels(np.arange(30., 90., 30.), zorder=99)
-        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=99, latmax=90)
+        m.drawparallels(np.arange(30., 90., 30.), zorder=99,dashes=[2,2],linewidth=0.5)
+        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=99, latmax=90,dashes=[2,2],linewidth=0.5)
         for obj in meridict:
             line = meridict[obj][0][0]
             line.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         limb = m.drawmapboundary(fill_color='#EFEFEF', zorder=0)
         limb.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
-        coastlines = m.drawcoastlines(zorder=99, linewidth=0.7)
+        coastlines = m.drawcoastlines(zorder=99, linewidth=0.5)
         coastlines.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         ret1.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         polys = m.fillcontinents(color='#B1B0B1', lake_color='#EFEFEF')
         for poly in polys:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        return m
 
 class ToRaster:
     def __init__(self):
