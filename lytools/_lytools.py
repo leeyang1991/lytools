@@ -3653,7 +3653,7 @@ class Plot:
 
 
 
-    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None):
+    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None,is_reproj=True):
         '''
         :param fpath: projected tif file
         :param ax: matplotlib ax
@@ -3665,10 +3665,15 @@ class Plot:
             '#86b9d2',
             '#064c6c',
         ]
+        # Blue represents high values, and red represents low values.
         if cmap is None:
             cmap = Tools().cmap_blend(color_list[::-1])
-
-        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
+        if not is_reproj:
+            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
+        else:
+            fpath_ortho = self.ortho_reproj(fpath, fpath+'_ortho-reproj.tif')
+            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_ortho)
+            os.remove(fpath_ortho)
         originY1 = copy.copy(originY)
         arr = Tools().mask_999999_arr(arr, warning=False)
         arr_m = ma.masked_where(np.isnan(arr), arr)
@@ -3682,7 +3687,7 @@ class Plot:
         clip_circle = mpatches.Circle(xy=(originY1, originY1), radius=originY1 * np.cos(np.pi / 6),
                                       facecolor='None', edgecolor='k', zorder=100, lw=1.5)
         clip_circle1 = mpatches.Circle(xy=(originY1, originY1), radius=originY1,
-                                       facecolor='None', edgecolor='w', zorder=100, lw=6)
+                                       facecolor='None', edgecolor='w', zorder=100, lw=10)
         ax.add_patch(clip_circle)
         ax.add_patch(clip_circle1)
         m.drawparallels(np.arange(30., 90., 30.), zorder=99,dashes=[2,2],linewidth=0.5)
@@ -3698,7 +3703,50 @@ class Plot:
         polys = m.fillcontinents(color='#B1B0B1', lake_color='#EFEFEF')
         for poly in polys:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
-        return m
+        return m,ret1
+
+    def ortho_wkt(self):
+        wkt = '''
+        PROJCRS["North_Pole_Orthographic",
+    BASEGEOGCRS["WGS 84",
+        DATUM["World Geodetic System 1984",
+            ELLIPSOID["WGS 84",6378137,298.257223563,
+                LENGTHUNIT["metre",1]]],
+        PRIMEM["Greenwich",0,
+            ANGLEUNIT["Degree",0.0174532925199433]]],
+    CONVERSION["North_Pole_Orthographic",
+        METHOD["Orthographic (Spherical)"],
+        PARAMETER["Latitude of natural origin",90,
+            ANGLEUNIT["Degree",0.0174532925199433],
+            ID["EPSG",8801]],
+        PARAMETER["Longitude of natural origin",0,
+            ANGLEUNIT["Degree",0.0174532925199433],
+            ID["EPSG",8802]],
+        PARAMETER["False easting",0,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8806]],
+        PARAMETER["False northing",0,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8807]]],
+    CS[Cartesian,2],
+        AXIS["(E)",east,
+            ORDER[1],
+            LENGTHUNIT["metre",1]],
+        AXIS["(N)",north,
+            ORDER[2],
+            LENGTHUNIT["metre",1]],
+    USAGE[
+        SCOPE["Not known."],
+        AREA["Northern hemisphere."],
+        BBOX[0,-180,90,180]],
+    ID["ESRI",102035]]'''
+        return wkt
+
+    def ortho_reproj(self,fpath,outf):
+        wkt = self.ortho_wkt()
+        srs = DIC_and_TIF().gen_srs_from_wkt(wkt)
+        ToRaster().resample_reproj(fpath, outf, 50000, dstSRS=srs)
+        return outf
 
 class ToRaster:
     def __init__(self):
