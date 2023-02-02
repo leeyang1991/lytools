@@ -5,6 +5,7 @@ version = sys.version_info.major
 assert version == 3, 'Python Version Error'
 
 import numpy as np
+import numpy.ma as ma
 
 from tqdm import tqdm
 
@@ -47,6 +48,8 @@ import matplotlib as mpl
 from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import pyplot as plt
+from mpl_toolkits.basemap import Basemap
+import matplotlib.patches as mpatches
 
 import hashlib
 from calendar import monthrange
@@ -2228,7 +2231,7 @@ class DIC_and_TIF:
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
         Tools().mkdir(this_class_dir, force=True)
-        outf = os.path.join(this_class_dir, 'spatial_tif_to_lon_lat_dic')
+        outf = os.path.join(this_class_dir, 'spatial_tif_to_lon_lat_dic.npy')
         if os.path.isfile(outf):
             print(f'loading {outf}')
             dic = Tools().load_npy(outf)
@@ -3648,6 +3651,41 @@ class Plot:
         # plt.tight_layout()
         # plt.show()
 
+    def plot_ortho(self,fpath,ax=None):
+        '''
+        :param fpath: projected tif file
+        :param ax: matplotlib ax
+        '''
+        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
+        originY1 = copy.copy(originY)
+        arr = Tools().mask_999999_arr(arr, warning=False)
+        arr_m = ma.masked_where(np.isnan(arr), arr)
+        originX = 0
+        originY = originY * 2
+        lon_list = np.arange(originX, originX + pixelWidth * arr.shape[1], pixelWidth)
+        lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
+        lon_list, lat_list = np.meshgrid(lon_list, lat_list)
+        m = Basemap(projection='ortho', lon_0=0, lat_0=90., ax=ax, resolution='l')
+        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=global_cmap_r, zorder=99, vmin=-0.4, vmax=0.4)
+        clip_circle = mpatches.Circle(xy=[originY1, originY1], radius=originY1 * np.cos(np.pi / 6),
+                                      facecolor='None', edgecolor='k', zorder=100, lw=2.5)
+        clip_circle1 = mpatches.Circle(xy=[originY1, originY1], radius=originY1,
+                                       facecolor='None', edgecolor='w', zorder=100, lw=6)
+        ax.add_patch(clip_circle)
+        ax.add_patch(clip_circle1)
+        m.drawparallels(np.arange(30., 90., 30.), zorder=99)
+        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=99, latmax=90)
+        for obj in meridict:
+            line = meridict[obj][0][0]
+            line.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        limb = m.drawmapboundary(fill_color='#EFEFEF', zorder=0)
+        limb.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        coastlines = m.drawcoastlines(zorder=99, linewidth=0.7)
+        coastlines.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        ret1.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        polys = m.fillcontinents(color='#B1B0B1', lake_color='#EFEFEF')
+        for poly in polys:
+            poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
 
 class ToRaster:
     def __init__(self):
