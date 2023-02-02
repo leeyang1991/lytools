@@ -3651,11 +3651,23 @@ class Plot:
         # plt.tight_layout()
         # plt.show()
 
-    def plot_ortho(self,fpath,ax=None):
+
+
+    def plot_ortho(self,fpath,ax=None,cmap=None):
         '''
         :param fpath: projected tif file
         :param ax: matplotlib ax
         '''
+        color_list = [
+            '#844000',
+            '#fc9831',
+            '#fffbd4',
+            '#86b9d2',
+            '#064c6c',
+        ]
+        if cmap is None:
+            cmap = Tools().cmap_blend(color_list[::-1])
+
         arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
         originY1 = copy.copy(originY)
         arr = Tools().mask_999999_arr(arr, warning=False)
@@ -3666,7 +3678,7 @@ class Plot:
         lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
         lon_list, lat_list = np.meshgrid(lon_list, lat_list)
         m = Basemap(projection='ortho', lon_0=0, lat_0=90., ax=ax, resolution='l')
-        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=global_cmap_r, zorder=99, vmin=-0.4, vmax=0.4)
+        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=-0.4, vmax=0.4)
         clip_circle = mpatches.Circle(xy=[originY1, originY1], radius=originY1 * np.cos(np.pi / 6),
                                       facecolor='None', edgecolor='k', zorder=100, lw=2.5)
         clip_circle1 = mpatches.Circle(xy=[originY1, originY1], radius=originY1,
