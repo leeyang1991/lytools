@@ -2231,7 +2231,10 @@ class DIC_and_TIF:
         # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
         Tools().mkdir(this_class_dir, force=True)
-        outf = os.path.join(this_class_dir, 'spatial_tif_to_lon_lat_dic.npy')
+        outf_conf = f'{self.originX}_{self.originY}_{self.pixelWidth}_{self.pixelHeight}'
+        hash_outf = hashlib.sha256(outf_conf).hexdigest()
+        hash_outf = hash_outf.encode('utf-8')
+        outf = os.path.join(this_class_dir, f'{hash_outf}.npy')
         if os.path.isfile(outf):
             print(f'loading {outf}')
             dic = Tools().load_npy(outf)
@@ -3655,8 +3658,8 @@ class Plot:
 
     def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None,is_reproj=True):
         '''
-        :param fpath: projected tif file
-        :param ax: matplotlib ax
+        :param fpath: tif file
+        :param is_reproj: if True, reproject file from 4326 to ortho
         '''
         color_list = [
             '#844000',
@@ -3666,6 +3669,8 @@ class Plot:
             '#064c6c',
         ]
         # Blue represents high values, and red represents low values.
+        if ax == None:
+            ax = plt.subplot(1, 1, 1)
         if cmap is None:
             cmap = Tools().cmap_blend(color_list[::-1])
         if not is_reproj:
