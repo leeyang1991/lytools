@@ -2232,13 +2232,12 @@ class DIC_and_TIF:
         this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
         Tools().mkdir(this_class_dir, force=True)
         outf_conf = f'{self.originX}_{self.originY}_{self.pixelWidth}_{self.pixelHeight}'
+        outf_conf = outf_conf.encode('utf-8')
         hash_outf = hashlib.sha256(outf_conf).hexdigest()
-        hash_outf = hash_outf.encode('utf-8')
         outf = os.path.join(this_class_dir, f'{hash_outf}.npy')
         if os.path.isfile(outf):
             print(f'loading {outf}')
             dic = Tools().load_npy(outf)
-            print('done')
             return dic
         else:
             arr = self.arr_template
