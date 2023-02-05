@@ -3718,7 +3718,7 @@ class Plot:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         return m,ret1
 
-    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, s=20, c='k', marker='x',
+    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20, c='k', marker='x',
                                         zorder=100, res=2):
         fpath_clip = fpath_p + 'clip.tif'
         fpath_spatial_dict = DIC_and_TIF().spatial_tif_to_dic(fpath_p)
@@ -3727,7 +3727,7 @@ class Plot:
         fpath_clip_spatial_dict_clipped = {}
         for pix in fpath_spatial_dict:
             lon, lat = D_clip_lon_lat_pix_dict[pix]
-            if lat < 30:
+            if lat <= 30 + res:
                 continue
             fpath_clip_spatial_dict_clipped[pix] = fpath_spatial_dict[pix]
         DIC_and_TIF().pix_dic_to_tif(fpath_clip_spatial_dict_clipped, fpath_clip)
@@ -3761,8 +3761,10 @@ class Plot:
         lat_list = np.array(lat_list)
         lon_list = lon_list - originX
         lat_list = lat_list + originY
+        lon_list = lon_list + pixelWidth / 2
+        lat_list = lat_list + pixelHeight / 2
         # m,ret = Plot().plot_ortho(fpath,vmin=-0.5,vmax=0.5)
-        m.scatter(lon_list, lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax)
+        m.scatter(lon_list, lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax,linewidths=linewidths)
 
         return m
 
