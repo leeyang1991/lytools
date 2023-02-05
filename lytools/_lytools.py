@@ -2227,19 +2227,8 @@ class DIC_and_TIF:
             fpath = join(outdir, fname)
             self.pix_dic_to_tif(spatial_dic_i, fpath)
 
-    def spatial_tif_to_lon_lat_dic(self, temp_dir):
-        # outf = self.this_class_arr + '{}_pix_to_lon_lat_dic.npy'.format(prefix)
-        this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
-        Tools().mkdir(this_class_dir, force=True)
-        outf_conf = f'{self.originX}_{self.originY}_{self.pixelWidth}_{self.pixelHeight}'
-        outf_conf = outf_conf.encode('utf-8')
-        hash_outf = hashlib.sha256(outf_conf).hexdigest()
-        outf = os.path.join(this_class_dir, f'{hash_outf}.npy')
-        if os.path.isfile(outf):
-            print(f'loading {outf}')
-            dic = Tools().load_npy(outf)
-            return dic
-        else:
+    def spatial_tif_to_lon_lat_dic(self, temp_dir=None):
+        if temp_dir is None:
             arr = self.arr_template
             pix_to_lon_lat_dic = {}
             for i in tqdm(list(range(len(arr))), desc='tif_to_lon_lat_dic'):
@@ -2248,10 +2237,30 @@ class DIC_and_TIF:
                     lon = self.originX + self.pixelWidth * j
                     lat = self.originY + self.pixelHeight * i
                     pix_to_lon_lat_dic[pix] = tuple([lon, lat])
-                    # print(tuple([lon, lat]))
-            print('saving')
-            np.save(outf, pix_to_lon_lat_dic)
             return pix_to_lon_lat_dic
+        else:
+            this_class_dir = os.path.join(temp_dir, 'DIC_and_TIF')
+            Tools().mkdir(this_class_dir, force=True)
+            outf_conf = f'{self.originX}_{self.originY}_{self.pixelWidth}_{self.pixelHeight}'
+            outf_conf = outf_conf.encode('utf-8')
+            hash_outf = hashlib.sha256(outf_conf).hexdigest()
+            outf = os.path.join(this_class_dir, f'{hash_outf}.npy')
+            if os.path.isfile(outf):
+                print(f'loading {outf}')
+                dic = Tools().load_npy(outf)
+                return dic
+            else:
+                arr = self.arr_template
+                pix_to_lon_lat_dic = {}
+                for i in tqdm(list(range(len(arr))), desc='tif_to_lon_lat_dic'):
+                    for j in range(len(arr[0])):
+                        pix = (i, j)
+                        lon = self.originX + self.pixelWidth * j
+                        lat = self.originY + self.pixelHeight * i
+                        pix_to_lon_lat_dic[pix] = tuple([lon, lat])
+                print('saving')
+                np.save(outf, pix_to_lon_lat_dic)
+                return pix_to_lon_lat_dic
 
     def spatial_tif_to_dic(self, tif):
 
@@ -3709,6 +3718,54 @@ class Plot:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         return m,ret1
 
+    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, s=20, c='k', marker='x',
+                                        zorder=100, res=2):
+        fpath_clip = fpath_p + 'clip.tif'
+        fpath_spatial_dict = DIC_and_TIF().spatial_tif_to_dic(fpath_p)
+        D_clip = DIC_and_TIF(tif_template=fpath_p)
+        D_clip_lon_lat_pix_dict = D_clip.spatial_tif_to_lon_lat_dic(temp_root)
+        fpath_clip_spatial_dict_clipped = {}
+        for pix in fpath_spatial_dict:
+            lon, lat = D_clip_lon_lat_pix_dict[pix]
+            if lat < 30:
+                continue
+            fpath_clip_spatial_dict_clipped[pix] = fpath_spatial_dict[pix]
+        DIC_and_TIF().pix_dic_to_tif(fpath_clip_spatial_dict_clipped, fpath_clip)
+        fpath_resample = fpath_clip + 'resample.tif'
+        ToRaster().resample_reproj(fpath_clip, fpath_resample, res=res)
+        fpath_resample_ortho = fpath_resample + 'ortho.tif'
+        self.ortho_reproj(fpath_resample, fpath_resample_ortho, res=res * 100000)
+        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_resample_ortho)
+
+        arr = Tools().mask_999999_arr(arr, warning=False)
+        arr[arr > sig_level] = np.nan
+        D_resample = DIC_and_TIF(tif_template=fpath_resample_ortho)
+
+        os.remove(fpath_clip)
+        os.remove(fpath_resample_ortho)
+        os.remove(fpath_resample)
+
+        spatial_dict = D_resample.spatial_arr_to_dic(arr)
+        lon_lat_pix_dict = D_resample.spatial_tif_to_lon_lat_dic(temp_root)
+
+        lon_list = []
+        lat_list = []
+        for pix in spatial_dict:
+            val = spatial_dict[pix]
+            if np.isnan(val):
+                continue
+            lon, lat = lon_lat_pix_dict[pix]
+            lon_list.append(lon)
+            lat_list.append(lat)
+        lon_list = np.array(lon_list)
+        lat_list = np.array(lat_list)
+        lon_list = lon_list - originX
+        lat_list = lat_list + originY
+        # m,ret = Plot().plot_ortho(fpath,vmin=-0.5,vmax=0.5)
+        m.scatter(lon_list, lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax)
+
+        return m
+
     def ortho_wkt(self):
         wkt = '''
         PROJCRS["North_Pole_Orthographic",
@@ -3746,10 +3803,10 @@ class Plot:
     ID["ESRI",102035]]'''
         return wkt
 
-    def ortho_reproj(self,fpath,outf):
+    def ortho_reproj(self,fpath,outf,res=50000):
         wkt = self.ortho_wkt()
         srs = DIC_and_TIF().gen_srs_from_wkt(wkt)
-        ToRaster().resample_reproj(fpath, outf, 50000, dstSRS=srs)
+        ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
         return outf
 
 class ToRaster:
