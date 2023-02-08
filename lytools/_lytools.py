@@ -765,6 +765,30 @@ class Tools:
 
         return r, p
 
+    def moving_window_correlation(self, arr1, arr2, window_size:int=10, date_list:list=None):
+        if not len(arr1) == len(arr2):
+            raise ValueError('arr1 and arr2 must have the same length')
+        if not date_list is None:
+            if not len(arr1) == len(date_list):
+                raise ValueError('arr and date_list must have the same length')
+        if window_size <= 3:
+            raise ValueError('window_size must be greater than 3')
+        arr1 = np.array(arr1)
+        arr2 = np.array(arr2)
+        corr_dict = {}
+        for i in range(len(arr1)):
+            if i + window_size >= len(arr1):
+                break
+            if not date_list is None:
+                window_name = f'{date_list[i]}-{date_list[i+window_size]}'
+            else:
+                window_name = f'{i}-{i+window_size}'
+            picked_arr1 = arr1[i:i+window_size]
+            picked_arr2 = arr2[i:i+window_size]
+            r,p = self.nan_correlation(picked_arr1, picked_arr2)
+            corr_dict[window_name] = r
+        return corr_dict
+
     def nan_line_fit(self, val1_list, val2_list):
         if not len(val1_list) == len(val2_list):
             raise UserWarning('val1_list and val2_list must have the same length')

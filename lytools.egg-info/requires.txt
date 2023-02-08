@@ -8,3 +8,4 @@ seaborn
 sklearn
 requests
 outdated
+basemap
