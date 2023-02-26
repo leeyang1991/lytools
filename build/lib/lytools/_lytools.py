@@ -1795,7 +1795,10 @@ class Tools:
         plt.tight_layout()
         plt.show()
 
-        pass
+
+    def dict_zip(self,keys,vals):
+        assert len(keys) == len(vals)
+        return dict(zip(keys,vals))
 
 class SMOOTH:
     '''
@@ -3688,7 +3691,7 @@ class Plot:
 
 
 
-    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None,is_reproj=True):
+    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None,is_plot_colorbar=True,is_reproj=True):
         '''
         :param fpath: tif file
         :param is_reproj: if True, reproject file from 4326 to ortho
@@ -3720,7 +3723,7 @@ class Plot:
         lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
         lon_list, lat_list = np.meshgrid(lon_list, lat_list)
         m = Basemap(projection='ortho', lon_0=0, lat_0=90., ax=ax, resolution='l')
-        ret1 = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
+        ret = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
         clip_circle = mpatches.Circle(xy=(originY1, originY1), radius=originY1 * np.cos(np.pi / 6),
                                       facecolor='None', edgecolor='k', zorder=100, lw=1.5)
         clip_circle1 = mpatches.Circle(xy=(originY1, originY1), radius=originY1,
@@ -3736,11 +3739,13 @@ class Plot:
         limb.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         coastlines = m.drawcoastlines(zorder=99, linewidth=0.5)
         coastlines.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
-        ret1.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
+        ret.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         polys = m.fillcontinents(color='#B1B0B1', lake_color='#EFEFEF')
         for poly in polys:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
-        return m,ret1
+        if is_plot_colorbar:
+            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom',pad=0.0)
+        return m,ret
 
     def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20, c='k', marker='x',
                                         zorder=100, res=2):
