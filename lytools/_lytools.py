@@ -2297,7 +2297,12 @@ class DIC_and_TIF:
         dic = self.spatial_arr_to_dic(arr)
         return dic
 
-        pass
+    def spatial_tif_to_arr(self, tif):
+        arr = ToRaster().raster2array(tif)[0]
+        arr = np.array(arr, dtype=float)
+        arr = Tools().mask_999999_arr(arr, warning=False)
+        return arr
+
 
     def void_spatial_dic(self):
         arr = self.arr_template
