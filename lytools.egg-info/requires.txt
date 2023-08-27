@@ -5,7 +5,7 @@ gdal
 tqdm
 pandas
 seaborn
-sklearn
+scikit-learn
 requests
 outdated
 basemap

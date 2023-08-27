@@ -81,7 +81,7 @@ class Tools:
             else:
                 os.mkdir(dir)
 
-    def mk_class_dir(self, class_name, result_root_this_script,mode=1):
+    def mk_class_dir(self, class_name, result_root_this_script, mode=1):
         if mode == 1:
             this_class_arr = join(result_root_this_script, f'arr/{class_name}/')
             this_class_tif = join(result_root_this_script, f'tif/{class_name}/')
@@ -465,14 +465,14 @@ class Tools:
             for c in range(arrs.shape[2]):
                 val_list = []
                 for arr in arrs:
-                    val = arr[r,c]
+                    val = arr[r, c]
                     val_list.append(val)
                 val_list = np.array(val_list)
                 if self.is_all_nan(val_list):
                     trend_i.append(np.nan)
                     p_i.append(np.nan)
                     continue
-                a, b, R, p = self.nan_line_fit(np.arange(len(val_list)),val_list)
+                a, b, R, p = self.nan_line_fit(np.arange(len(val_list)), val_list)
                 trend_i.append(a)
                 p_i.append(p)
             trend_matrix.append(trend_i)
@@ -480,7 +480,6 @@ class Tools:
         trend_matrix = np.array(trend_matrix)
         P_matrix = np.array(P_matrix)
         return trend_matrix, P_matrix
-
 
     def pick_vals_from_2darray(self, array, index, pick_nan=False):
         # 2d
@@ -558,13 +557,13 @@ class Tools:
         max_key = key_list[max_val_index]
         return max_key
 
-    def pick_max_n_index(self,vals,n):
+    def pick_max_n_index(self, vals, n):
         vals = np.array(vals)
         vals[np.isnan(vals)] = -np.inf
         argsort = np.argsort(vals)
         max_n_index = argsort[::-1][:n]
-        max_n_val = self.pick_vals_from_1darray(vals,max_n_index)
-        return max_n_index,max_n_val
+        max_n_val = self.pick_vals_from_1darray(vals, max_n_index)
+        return max_n_index, max_n_val
 
     def point_to_shp(self, inputlist, outSHPfn):
         '''
@@ -583,9 +582,9 @@ class Tools:
         '''
 
         fieldType_dict = {
-            'float':ogr.OFTReal,
-            'int':ogr.OFTInteger,
-            'str':ogr.OFTString
+            'float': ogr.OFTReal,
+            'int': ogr.OFTInteger,
+            'str': ogr.OFTString
         }
 
         if len(inputlist) > 0:
@@ -606,7 +605,8 @@ class Tools:
             value_type_list = []
             for col in col_list:
                 if len(col) > 10:
-                    raise UserWarning(f'The length of column name "{col}" is too long, length must be less than 10\nplease rename the column')
+                    raise UserWarning(
+                        f'The length of column name "{col}" is too long, length must be less than 10\nplease rename the column')
                 value = inputlist[0][2][col]
                 value_type = type(value)
                 value_type_list.append(value_type)
@@ -684,8 +684,8 @@ class Tools:
     def print_head_n(self, df, n=10, pause_flag=0):
         self.show_df_all_columns()
         print(df.head(n))
-        print('Dataframe length:',len(df))
-        print('Dataframe columns length:',len(df.columns))
+        print('Dataframe length:', len(df))
+        print('Dataframe columns length:', len(df.columns))
         if pause_flag == 1:
             pause()
 
@@ -765,7 +765,7 @@ class Tools:
 
         return r, p
 
-    def moving_window_correlation(self, arr1, arr2, window_size:int=10, date_list:list=None):
+    def moving_window_correlation(self, arr1, arr2, window_size: int = 10, date_list: list = None):
         if not len(arr1) == len(arr2):
             raise ValueError('arr1 and arr2 must have the same length')
         if not date_list is None:
@@ -780,12 +780,12 @@ class Tools:
             if i + window_size >= len(arr1):
                 break
             if not date_list is None:
-                window_name = f'{date_list[i]}-{date_list[i+window_size]}'
+                window_name = f'{date_list[i]}-{date_list[i + window_size]}'
             else:
-                window_name = f'{i}-{i+window_size}'
-            picked_arr1 = arr1[i:i+window_size]
-            picked_arr2 = arr2[i:i+window_size]
-            r,p = self.nan_correlation(picked_arr1, picked_arr2)
+                window_name = f'{i}-{i + window_size}'
+            picked_arr1 = arr1[i:i + window_size]
+            picked_arr2 = arr2[i:i + window_size]
+            r, p = self.nan_correlation(picked_arr1, picked_arr2)
             corr_dict[window_name] = r
         return corr_dict
 
@@ -807,7 +807,7 @@ class Tools:
         if len(val1_list_new) <= 3:
             a, b, r, p = np.nan, np.nan, np.nan, np.nan
         else:
-            a, b, r, p = K.linefit(val1_list_new,val2_list_new)
+            a, b, r, p = K.linefit(val1_list_new, val2_list_new)
 
         return a, b, r, p
 
@@ -902,7 +902,7 @@ class Tools:
             all_cols.sort()
         else:
             all_cols = col_order
-        for key in dic:
+        for key in tqdm(dic):
             vals = dic[key]
             if len(vals) == 0:
                 continue
@@ -965,9 +965,9 @@ class Tools:
         else:
             raise UserWarning(f'"pix" is not unique')
 
-    def is_unique_key_in_df(self,df,unique_key):
+    def is_unique_key_in_df(self, df, unique_key):
         len_df = len(df)
-        unique_key_list = self.get_df_unique_val_list(df,unique_key)
+        unique_key_list = self.get_df_unique_val_list(df, unique_key)
         len_unique_key = len(unique_key_list)
         if len_df == len_unique_key:
             return True
@@ -975,7 +975,7 @@ class Tools:
             return False
 
     def add_dic_to_df(self, df, dic, unique_key):
-        if not self.is_unique_key_in_df(df,unique_key):
+        if not self.is_unique_key_in_df(df, unique_key):
             raise UserWarning(f'{unique_key} is not a unique key')
         all_val_list = []
         all_col_list = []
@@ -1001,7 +1001,6 @@ class Tools:
         for i in range(len(all_col_list_T)):
             df[all_col_list_T[i][0]] = all_val_list_T[i]
         return df
-
 
     def spatial_dics_to_df(self, spatial_dic_all):
         unique_keys = []
@@ -1047,12 +1046,12 @@ class Tools:
         df[key_name] = val_list
         return df
 
-    def join_df_list(self,df,df_list,key):
+    def join_df_list(self, df, df_list, key):
         # key must be unique
         if len(df) == 0:
             df = df_list[0]
             df_list = df_list[1:]
-        if not self.is_unique_key_in_df(df,key):
+        if not self.is_unique_key_in_df(df, key):
             raise UserWarning(f'{key} in not an unique key')
         for df_i in df_list:
             df = df.join(df_i.set_index(key), on=key)
@@ -1078,12 +1077,12 @@ class Tools:
         return dic
         pass
 
-    def df_to_dic_non_unique_key(self,df,non_unique_colname,unique_colname):
+    def df_to_dic_non_unique_key(self, df, non_unique_colname, unique_colname):
         df_to_dict = {}
-        col_name_list = self.get_df_unique_val_list(df,non_unique_colname)
-        for key in tqdm(col_name_list,desc='df_to_dic_non_unique_key'):
-            df_col_name = df[df[non_unique_colname]==key]
-            df_year_dict = self.df_to_dic(df_col_name,unique_colname)
+        col_name_list = self.get_df_unique_val_list(df, non_unique_colname)
+        for key in tqdm(col_name_list, desc='df_to_dic_non_unique_key'):
+            df_col_name = df[df[non_unique_colname] == key]
+            df_year_dict = self.df_to_dic(df_col_name, unique_colname)
             df_to_dict[key] = df_year_dict
         return df_to_dict
 
@@ -1101,14 +1100,14 @@ class Tools:
         df['pix'] = pix_list
         return df
 
-    def add_lon_lat_to_df(self,df,D=None):
+    def add_lon_lat_to_df(self, df, D=None):
         lon_list = []
         lat_list = []
         if D is None:
             D = DIC_and_TIF()
-        for i,row in tqdm(df.iterrows(),total=len(df)):
+        for i, row in tqdm(df.iterrows(), total=len(df)):
             pix = row.pix
-            lon,lat = D.pix_to_lon_lat(pix)
+            lon, lat = D.pix_to_lon_lat(pix)
             lon_list.append(lon)
             lat_list.append(lat)
         df['lon'] = lon_list
@@ -1222,7 +1221,7 @@ class Tools:
 
         return annual_val_list
 
-    def monthly_to_annual_with_datetime_obj(self,vals,date_range,grow_season:list, method='mean'):
+    def monthly_to_annual_with_datetime_obj(self, vals, date_range, grow_season: list, method='mean'):
         if grow_season == None:
             grow_season = list(range(12))
         else:
@@ -1236,7 +1235,7 @@ class Tools:
                 year_list.append(year)
         year_list.sort()
         vals_dict = dict(zip(date_range, vals))
-        annual_dict = {y:[] for y in year_list}
+        annual_dict = {y: [] for y in year_list}
         for date in vals_dict:
             year = date.year
             mon = date.month
@@ -1264,7 +1263,6 @@ class Tools:
         year_date_obj_list = [datetime.datetime(y, 1, 1) for y in year_list]
         return year_date_obj_list, vals_gs_annual
 
-
     def monthly_vals_to_date_dic(self, monthly_val, start_year, end_year):
         date_list = []
         for y in range(start_year, end_year + 1):
@@ -1279,27 +1277,27 @@ class Tools:
 
         return dic
 
-    def month_index_to_date_obj(self,month_index,init_date_obj):
+    def month_index_to_date_obj(self, month_index, init_date_obj):
         year = init_date_obj.year
         month = init_date_obj.month
         end_month = month + month_index
-        end_year = year + int(end_month/12)
-        end_month = end_month%12
+        end_year = year + int(end_month / 12)
+        end_month = end_month % 12
         if end_month == 0:
             end_month = 12
             end_year -= 1
-        end_date_obj = datetime.datetime(end_year,end_month,1)
+        end_date_obj = datetime.datetime(end_year, end_month, 1)
         return end_date_obj
 
-    def pick_gs_monthly_data(self,vals,gs):
+    def pick_gs_monthly_data(self, vals, gs):
         if len(vals) % 12 != 0:
             raise ValueError('the lenth of vals is not a multiple of 12')
         vals_year_number = len(vals) // 12
         start_year = 1982
         end_year = start_year + vals_year_number - 1
-        vals_dict = self.monthly_vals_to_date_dic(vals,start_year,end_year)
+        vals_dict = self.monthly_vals_to_date_dic(vals, start_year, end_year)
         picked_dates = []
-        for y in range(start_year,end_year+1):
+        for y in range(start_year, end_year + 1):
             for m in gs:
                 picked_dates.append(f'{y:04d}{m:02d}')
         gs_vals = []
@@ -1327,7 +1325,7 @@ class Tools:
         z = x.intersection(y)
         return z
 
-    def is_all_nan(self,vals):
+    def is_all_nan(self, vals):
         if type(vals) == float:
             return True
         vals = np.array(vals)
@@ -1344,10 +1342,10 @@ class Tools:
             return False
         pass
 
-    def reverse_dic(self,dic):
+    def reverse_dic(self, dic):
         items = dic.items()
         df = pd.DataFrame.from_dict(data=items)
-        unique_vals = self.get_df_unique_val_list(df,1)
+        unique_vals = self.get_df_unique_val_list(df, 1)
         dic_reverse = {}
         for v in unique_vals:
             dic_reverse[v] = []
@@ -1356,9 +1354,9 @@ class Tools:
             dic_reverse[val].append(key)
         return dic_reverse
 
-    def combine_df_columns(self,df,combine_col,new_col_name,method='mean'):
+    def combine_df_columns(self, df, combine_col, new_col_name, method='mean'):
         combined_vals_list = []
-        for i,row in tqdm(df.iterrows(),total=len(df)):
+        for i, row in tqdm(df.iterrows(), total=len(df)):
             vals_list = []
             for cols in combine_col:
                 vals = row[cols]
@@ -1367,20 +1365,20 @@ class Tools:
                 vals = np.array(vals)
                 vals_list.append(vals)
             vals_list = np.array(vals_list)
-            vals_list_mean = np.nanmean(vals_list,axis=0)
+            vals_list_mean = np.nanmean(vals_list, axis=0)
             combined_vals_list.append(vals_list_mean)
         df[new_col_name] = combined_vals_list
         return df
 
-    def get_vals_std_up_down(self,vals):
+    def get_vals_std_up_down(self, vals):
         vals = np.array(vals)
         std = np.nanstd(vals)
         mean = np.nanmean(vals)
         up = mean + std
         down = mean - std
-        return up,down
+        return up, down
 
-    def vals_to_time_sereis_annual(self,vals,yearlist:list=None,start_year:int=None):
+    def vals_to_time_sereis_annual(self, vals, yearlist: list = None, start_year: int = None):
         if yearlist == start_year == None:
             raise UserWarning('You must input at least one parameter of "year list" or "start year"')
         if start_year != None:
@@ -1391,7 +1389,7 @@ class Tools:
             xval_ts = pd.Series(vals, index=yearlist)
             return xval_ts
 
-    def hex_color_to_rgb(self,hex_color):
+    def hex_color_to_rgb(self, hex_color):
         '''
         auto generated by github copilot
         :param hex_color:
@@ -1403,7 +1401,7 @@ class Tools:
         rgb_list.append(1)
         return tuple(rgb_list)
 
-    def cross_list(self,*args,is_unique=False):
+    def cross_list(self, *args, is_unique=False):
         # auto generate by github copilot
         cross_list = list(itertools.product(*args))
         cross_list = [x for x in cross_list if x[0] != x[1]]
@@ -1418,7 +1416,7 @@ class Tools:
         else:
             return cross_list
 
-    def cross_select_dataframe(self,df,*args,is_unique=False):
+    def cross_select_dataframe(self, df, *args, is_unique=False):
         if len(args) == 1:
             arg = args[0]
             unique_value = self.get_df_unique_val_list(df, arg)
@@ -1432,7 +1430,7 @@ class Tools:
             for arg in args:
                 unique_value = self.get_df_unique_val_list(df, arg)
                 unique_value_list.append(unique_value)
-            cross_list = self.cross_list(*unique_value_list,is_unique=is_unique)
+            cross_list = self.cross_list(*unique_value_list, is_unique=is_unique)
             cross_df_dict = {}
             for x in cross_list:
                 df_copy = copy.copy(df)
@@ -1441,8 +1439,7 @@ class Tools:
                 cross_df_dict[x] = df_copy
             return cross_df_dict
 
-
-    def resample_nan(self,array,target_res,original_res,nan_value=-999999):
+    def resample_nan(self, array, target_res, original_res, nan_value=-999999):
         array = array.astype(np.float32)
         array[array == nan_value] = np.nan
         window_len = int(target_res / original_res)
@@ -1477,16 +1474,16 @@ class Tools:
         return matrix
         pass
 
-    def cmap_blend(self,color_list,as_cmap=True,n_colors=6):
+    def cmap_blend(self, color_list, as_cmap=True, n_colors=6):
         # color_list = ['r', 'g', 'b']
         cmap = sns.blend_palette(color_list, as_cmap=as_cmap, n_colors=n_colors)
         return cmap
 
-    def cmap_diverging(self,start_color_hue,end_color_hue,saturation=100,lightness=40):
+    def cmap_diverging(self, start_color_hue, end_color_hue, saturation=100, lightness=40):
         cmap = sns.diverging_palette(0, 120, s=saturation, l=40, as_cmap=True)
         return cmap
 
-    def get_max_key_from_dict(self,input_dict):
+    def get_max_key_from_dict(self, input_dict):
         max_key = None
         max_value = -np.inf
         for key in input_dict:
@@ -1496,7 +1493,7 @@ class Tools:
                 max_value = value
         return max_key
 
-    def days_number_of_year(self,year):
+    def days_number_of_year(self, year):
         if year % 4 == 0:
             if year % 100 == 0:
                 if year % 400 == 0:
@@ -1508,9 +1505,9 @@ class Tools:
         else:
             return 365
 
-    def count_days_of_two_dates(self,date1,date2):
-        date1 = datetime.datetime.strptime(date1,'%Y-%m-%d')
-        date2 = datetime.datetime.strptime(date2,'%Y-%m-%d')
+    def count_days_of_two_dates(self, date1, date2):
+        date1 = datetime.datetime.strptime(date1, '%Y-%m-%d')
+        date2 = datetime.datetime.strptime(date2, '%Y-%m-%d')
         delta = date2 - date1
         return delta.days
 
@@ -1627,26 +1624,26 @@ class Tools:
             val_list_new = df['val'].tolist()
             DIC_and_TIF().lon_lat_val_to_tif(lon_list_new, lat_list_new, val_list_new, outpath)
 
-    def uncertainty_err(self,vals):
+    def uncertainty_err(self, vals):
         mean = np.nanmean(vals)
         std = np.nanstd(vals)
         up, bottom = stats.t.interval(0.95, len(vals) - 1, loc=mean, scale=std / np.sqrt(len(vals)))
         err = mean - bottom
         return err, up, bottom
 
-    def uncertainty_err_2d(self,vals, axis=0):
+    def uncertainty_err_2d(self, vals, axis=0):
         vals = np.array(vals)
         if axis == 0:
             vals_T = vals.T
             vals_err = []
-            for val in tqdm(vals_T,desc='uncertainty'):
+            for val in tqdm(vals_T, desc='uncertainty'):
                 err, _, _ = self.uncertainty_err(val)
                 vals_err.append(err)
             vals_err = np.array(vals_err)
         elif axis == 1:
             vals_T = vals
             vals_err = []
-            for val in tqdm(vals_T,desc='uncertainty'):
+            for val in tqdm(vals_T, desc='uncertainty'):
                 err, _, _ = self.uncertainty_err(val)
                 vals_err.append(err)
             vals_err = np.array(vals_err)
@@ -1654,9 +1651,9 @@ class Tools:
             raise Exception('axis must be 0 or 1')
         return vals_err
 
-    def df_bin(self,df,col,bins):
+    def df_bin(self, df, col, bins):
         df_copy = df.copy()
-        df_copy[f'{col}_bins'] = pd.cut(df[col],bins=bins)
+        df_copy[f'{col}_bins'] = pd.cut(df[col], bins=bins)
         df_group = df_copy.groupby([f'{col}_bins'])
         bins_name = df_group.groups.keys()
         bins_name_list = list(bins_name)
@@ -1668,9 +1665,9 @@ class Tools:
         #     # x_list.append(name)
         #     y_list.append(mean)
         #     err_list.append(err)
-        return df_group,bins_list_str
+        return df_group, bins_list_str
 
-    def ANOVA_test(self,*args,method:str):
+    def ANOVA_test(self, *args, method: str):
         if method == 'f_oneway':
             return stats.f_oneway(*args)
         elif method == 'ks':
@@ -1679,11 +1676,11 @@ class Tools:
             else:
                 raise ValueError('KS test args length must be 2')
 
-    def drop_df_index(self,df):
+    def drop_df_index(self, df):
         df = df.reset_index(drop=True)
         return df
 
-    def date_to_DOY(self,date_list):
+    def date_to_DOY(self, date_list):
         '''
         :param date_list: list of datetime objects
         :return: list of DOY
@@ -1694,15 +1691,15 @@ class Tools:
         DOY = [date.days for date in date_delta]
         return DOY
 
-    def gen_colors(self,color_list_number,palette='Spectral'):
+    def gen_colors(self, color_list_number, palette='Spectral'):
         color_list = sns.color_palette(palette, color_list_number)
         return color_list
 
-    def del_columns(self,df,columns:list):
-        df = df.drop(columns=columns,axis=1)
+    def del_columns(self, df, columns: list):
+        df = df.drop(columns=columns, axis=1)
         return df
 
-    def bootstrap_data(self,data:pd.DataFrame,n:int,ratio:float):
+    def bootstrap_data(self, data: pd.DataFrame, n: int, ratio: float):
         if not 0 < ratio < 1:
             raise ValueError('ratio must be between 0 and 1')
         data_len = len(data)
@@ -1727,7 +1724,7 @@ class Tools:
             print(f)
         plt.rcParams["font.sans-serif"] = list(available)[0]
 
-    def lag_correlation(self,earlier,later,lag,method='pearson'):
+    def lag_correlation(self, earlier, later, lag, method='pearson'):
         '''
         earlier value can affect later value
         e.g. earlier SPEI, later NDVI
@@ -1738,14 +1735,14 @@ class Tools:
         else:
             later = later[lag:]
             earlier = earlier[:-lag]
-            r,p = self.nan_correlation(earlier, later, method)
-        return r,p
-    
-    def df_groupby(self,df,col):
+            r, p = self.nan_correlation(earlier, later, method)
+        return r, p
+
+    def df_groupby(self, df, col):
         assert col in df.columns
         df_groupby = df.groupby(col)
         df_group_dict = {}
-        for name,group in df_groupby:
+        for name, group in df_groupby:
             df_group_dict[name] = group
         return df_group_dict
 
@@ -1784,21 +1781,21 @@ class Tools:
             flag += 1
             ax = fig.add_subplot(10, 9, flag)
             print(c)
-            pal = sns.color_palette(c,n_colors=11)
+            pal = sns.color_palette(c, n_colors=11)
             n = len(pal)
             ax.imshow(np.arange(n).reshape(1, n),
                       cmap=mpl.colors.ListedColormap(list(pal)),
-                      interpolation="nearest",aspect='auto')
+                      interpolation="nearest", aspect='auto')
             plt.xticks([])
             plt.yticks([])
             plt.title(c)
         plt.tight_layout()
         plt.show()
 
-
-    def dict_zip(self,keys,vals):
+    def dict_zip(self, keys, vals):
         assert len(keys) == len(vals)
-        return dict(zip(keys,vals))
+        return dict(zip(keys, vals))
+
 
 class SMOOTH:
     '''
@@ -2148,7 +2145,7 @@ class DIC_and_TIF:
                 x = list(range(len(vals)))
                 y = vals
                 try:
-                    a,_,_,_ = Tools().nan_line_fit(x,y)
+                    a, _, _, _ = Tools().nan_line_fit(x, y)
                 except:
                     a = np.nan
             mean_spatial_dic[pix] = a
@@ -2194,7 +2191,7 @@ class DIC_and_TIF:
 
         pass
 
-    def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir, filename_list:list=None):
+    def pix_dic_to_tif_every_time_stamp(self, spatial_dic, outdir, filename_list: list = None):
         Tools().mkdir(outdir)
         ## check values number
         vals_number_list = []
@@ -2303,7 +2300,6 @@ class DIC_and_TIF:
         arr = Tools().mask_999999_arr(arr, warning=False)
         return arr
 
-
     def void_spatial_dic(self):
         arr = self.arr_template
         void_dic = {}
@@ -2340,7 +2336,7 @@ class DIC_and_TIF:
                 void_dic[key] = 1.
         return void_dic
 
-    def plot_back_ground_arr(self, rasterized_world_tif,ax=None, **kwargs):
+    def plot_back_ground_arr(self, rasterized_world_tif, ax=None, **kwargs):
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         ndv = ToRaster().get_ndv(rasterized_world_tif)
         back_ground = []
@@ -2362,8 +2358,7 @@ class DIC_and_TIF:
         else:
             ax.imshow(back_ground, 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
-
-    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif,ax=None,**kwargs):
+    def plot_back_ground_arr_north_sphere(self, rasterized_world_tif, ax=None, **kwargs):
         ndv = ToRaster().get_ndv(rasterized_world_tif)
         arr = ToRaster().raster2array(rasterized_world_tif)[0]
         back_ground = []
@@ -2381,7 +2376,7 @@ class DIC_and_TIF:
             back_ground.append(temp)
         back_ground = np.array(back_ground)
         if ax == None:
-            plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1,**kwargs)
+            plt.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
         else:
             ax.imshow(back_ground[:int(len(arr) / 2)], 'gray', vmin=0, vmax=1.4, zorder=-1, **kwargs)
 
@@ -2602,7 +2597,7 @@ class DIC_and_TIF:
                     val_pix = spatial_dic[key]
                     temp.append(val_pix)
                 else:
-                    temp.append(None)
+                    temp.append(np.nan)
             spatial.append(temp)
         spatial = np.array(spatial)
         array, longitude_start, latitude_start, pixelWidth, pixelHeight = \
@@ -2664,7 +2659,7 @@ class DIC_and_TIF:
         newRasterfn = out_tif
         ToRaster().array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
-    def unify_raster1(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'): # todo: need to be tested
+    def unify_raster1(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):  # todo: need to be tested
         row = len(self.arr_template)
         col = len(self.arr_template[0])
         sY = self.originY
@@ -2750,7 +2745,7 @@ class DIC_and_TIF:
         return lon, lat
 
     def plot_sites_location(self, lon_list, lat_list, background_tif=None, inshp=None, out_background_tif=None,
-                            pixel_size=None, text_list=None, colorlist=None, isshow=False,**kwargs):
+                            pixel_size=None, text_list=None, colorlist=None, isshow=False, **kwargs):
         pix_list = self.lon_lat_to_pix(lon_list, lat_list, isInt=False)
         lon_list = []
         lat_list = []
@@ -2785,19 +2780,18 @@ class DIC_and_TIF:
         if isshow:
             plt.show()
 
-    def plot_df_spatial_pix(self,df,global_land_tif):
+    def plot_df_spatial_pix(self, df, global_land_tif):
         pix_list = df['pix'].tolist()
         pix_list = list(set(pix_list))
-        spatial_dict = {pix:1 for pix in pix_list}
+        spatial_dict = {pix: 1 for pix in pix_list}
         arr = self.pix_dic_to_spatial_arr(spatial_dict)
         self.plot_back_ground_arr(global_land_tif)
         plt.imshow(arr)
 
-
-    def rad(self,d):
+    def rad(self, d):
         return d * math.pi / 180
 
-    def GetDistance(self,lng1, lat1, lng2, lat2):
+    def GetDistance(self, lng1, lat1, lng2, lat2):
         radLat1 = self.rad(lat1)
         radLat2 = self.rad(lat2)
         a = radLat1 - radLat2
@@ -2824,18 +2818,19 @@ class DIC_and_TIF:
         pix_list = self.void_spatial_dic()
         pixel_size = self.pixelWidth
         area_dict = {}
-        for pix in tqdm(pix_list,desc='calculate_pixel_area'):
-            lon,lat = self.pix_to_lon_lat(pix)
-            upper_left_lon = lon - pixel_size/2
-            upper_left_lat = lat + pixel_size/2
-            upper_right_lon = lon + pixel_size/2
-            upper_right_lat = lat + pixel_size/2
-            lower_left_lon = lon - pixel_size/2
-            lower_left_lat = lat - pixel_size/2
-            lower_right_lon = lon + pixel_size/2
-            lower_right_lat = lat - pixel_size/2
-            upper_left_to_upper_right = self.GetDistance(upper_left_lon,upper_left_lat,upper_right_lon,upper_right_lat)
-            upper_left_to_lower_left = self.GetDistance(upper_left_lon,upper_left_lat,lower_left_lon,lower_left_lat)
+        for pix in tqdm(pix_list, desc='calculate_pixel_area'):
+            lon, lat = self.pix_to_lon_lat(pix)
+            upper_left_lon = lon - pixel_size / 2
+            upper_left_lat = lat + pixel_size / 2
+            upper_right_lon = lon + pixel_size / 2
+            upper_right_lat = lat + pixel_size / 2
+            lower_left_lon = lon - pixel_size / 2
+            lower_left_lat = lat - pixel_size / 2
+            lower_right_lon = lon + pixel_size / 2
+            lower_right_lat = lat - pixel_size / 2
+            upper_left_to_upper_right = self.GetDistance(upper_left_lon, upper_left_lat, upper_right_lon,
+                                                         upper_right_lat)
+            upper_left_to_lower_left = self.GetDistance(upper_left_lon, upper_left_lat, lower_left_lon, lower_left_lat)
             area = upper_left_to_upper_right * upper_left_to_lower_left
             area_dict[pix] = area
         return area_dict
@@ -3088,7 +3083,7 @@ class KDE_plot:
             # plt.legend()
             return a, b, r, p
 
-    def plot_scatter_hex(self,x,y,kind="hex", color="#4CB391", xlim=None, ylim=None, gridsize=80):
+    def plot_scatter_hex(self, x, y, kind="hex", color="#4CB391", xlim=None, ylim=None, gridsize=80):
         df_temp = pd.DataFrame()
         df_temp['x'] = x
         df_temp['y'] = y
@@ -3369,7 +3364,31 @@ class Pre_Process:
         pix_anomaly = np.array(pix_anomaly)
         return pix_anomaly
 
-    def climotology_mean_std(self,vals):
+    def climatology_percentage(self, vals):
+        '''
+        percentage
+        :param vals:
+        :return:
+        '''
+        pix_percentage = []
+        climatology_means = []
+        for m in range(1, 13):
+            one_mon = []
+            for i in range(len(vals)):
+                mon = i % 12 + 1
+                if mon == m:
+                    one_mon.append(vals[i])
+            mean = np.nanmean(one_mon)
+            climatology_means.append(mean)
+        for i in range(len(vals)):
+            mon = i % 12
+            mean_ = climatology_means[mon]
+            percentage = vals[i] / mean_ * 100 - 100
+            pix_percentage.append(percentage)
+        pix_percentage = np.array(pix_percentage)
+        return pix_percentage
+
+    def climotology_mean_std(self, vals):
         result_dict = {}
         climatology_means = []
         climatology_std = []
@@ -3383,7 +3402,7 @@ class Pre_Process:
             std = np.nanstd(one_mon)
             climatology_means.append(mean)
             climatology_std.append(std)
-            result_dict[m] = {'mean':mean,'std':std}
+            result_dict[m] = {'mean': mean, 'std': std}
         return result_dict
 
     def z_score(self, vals):
@@ -3396,18 +3415,17 @@ class Pre_Process:
             anomaly = (vals - mean) / std
         return anomaly
 
-
     def cal_anomaly_juping(self, vals):
         mean = np.nanmean(vals)
         vals = np.array(vals)
         anomaly = vals - mean
         return anomaly
 
-    def cal_relative_change(self,vals):
+    def cal_relative_change(self, vals):
         relative_change_list = []
         mean = np.nanmean(vals)
         for v in vals:
-            relative_change = (v-mean) / v
+            relative_change = (v - mean) / v
             relative_change_list.append(relative_change)
         relative_change_list = np.array(relative_change_list)
         return relative_change_list
@@ -3456,9 +3474,9 @@ class Pre_Process:
     def detrend(self, fdir, outdir):
         Tools().mkdir(outdir)
         for f in tqdm(Tools().listdir(fdir), desc='detrend...'):
-            dic = Tools().load_npy(join(fdir,f))
+            dic = Tools().load_npy(join(fdir, f))
             dic_detrend = Tools().detrend_dic(dic)
-            outf = join(outdir,f)
+            outf = join(outdir, f)
             Tools().save_npy(dic_detrend, outf)
         pass
 
@@ -3480,7 +3498,7 @@ class Pre_Process:
         spatial_dic = {}
         for pix in tqdm(void_dic, desc='calculating mean...'):
             vals = void_dic[pix]
-            vals = np.array(vals)
+            vals = np.array(vals, dtype=np.float)
             vals[vals < less_than] = np.nan
             if method == 'mean':
                 compose_val = np.nanmean(vals)
@@ -3628,7 +3646,7 @@ class Plot:
         plt.fill_between(x, y1, y2, zorder=-99,
                          color=c, edgecolor=None, alpha=0.2, **kwargs)
 
-    def plot_hist_smooth(self, arr, interpolate_window=5,range=None, **kwargs):
+    def plot_hist_smooth(self, arr, interpolate_window=5, range=None, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
 
         n1, x1, patch = plt.hist(arr, weights=weights, range=range, **kwargs)
@@ -3649,54 +3667,52 @@ class Plot:
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1, y1
 
-    def multi_step_pdf(self,df, pdf_colname ,bin_colname, bins, pdf_bin_n=40,pdf_range=None, discard_limit_n=10,
-                       blend_color_list=('#ABD3E0','#EFDDE2','#DC9AA2')):
+    def multi_step_pdf(self, df, pdf_colname, bin_colname, bins, pdf_bin_n=40, pdf_range=None, discard_limit_n=10,
+                       blend_color_list=('#ABD3E0', '#EFDDE2', '#DC9AA2')):
         flag = 0
-        df_group,bins_list_str = Tools().df_bin(df,bin_colname,bins)
+        df_group, bins_list_str = Tools().df_bin(df, bin_colname, bins)
         color_len = 0
-        for name,df_group_i in df_group:
+        for name, df_group_i in df_group:
             vals = df_group_i[pdf_colname].tolist()
             vals = np.array(vals)
             if len(vals) <= discard_limit_n:
                 continue
             color_len += 1
         # exit()
-        color_list = Tools().cmap_blend(blend_color_list,as_cmap=False,n_colors=color_len)
-        alpha_list = np.linspace(0.5,1,color_len)
+        color_list = Tools().cmap_blend(blend_color_list, as_cmap=False, n_colors=color_len)
+        alpha_list = np.linspace(0.5, 1, color_len)
         fig, ax = plt.subplots(1)
         delta_y = 0.1
         label_list = []
         y_tick_list = []
         vals_mean_list = []
-        for name,df_group_i in df_group:
+        for name, df_group_i in df_group:
             label = str(name.left) + '-' + str(name.right)
             vals = df_group_i[pdf_colname].tolist()
             vals = np.array(vals)
-            print(bin_colname,label,len(vals))
+            print(bin_colname, label, len(vals))
             if len(vals) <= discard_limit_n:
                 continue
             vals_mean = np.nanmedian(vals)
             vals_mean_list.append(vals_mean)
             x, y = Plot().plot_hist_smooth(vals, bins=pdf_bin_n, alpha=0., range=pdf_range, color=color_list[flag],
-                                         linewidth=2)
+                                           linewidth=2)
             # ax.plot(x, y, label=label, color=color_list[flag])
-            ax.plot(x, y+delta_y*flag, color='k',zorder=100)
-            y_tick_list.append(delta_y*flag)
-            ax.fill(x, y+delta_y*flag, color=color_list[flag], label=label,zorder=-flag)
+            ax.plot(x, y + delta_y * flag, color='k', zorder=100)
+            y_tick_list.append(delta_y * flag)
+            ax.fill(x, y + delta_y * flag, color=color_list[flag], label=label, zorder=-flag)
             label_list.append(label)
             flag += 1
         # plt.legend()
         plt.xlabel(pdf_colname)
         plt.ylabel(bin_colname)
-        plt.yticks(y_tick_list,label_list)
+        plt.yticks(y_tick_list, label_list)
         y_tick_list = np.array(y_tick_list)
-        plt.scatter(vals_mean_list,y_tick_list+0.05,color='k',zorder=100)
+        plt.scatter(vals_mean_list, y_tick_list + 0.05, color='k', zorder=100)
         # plt.tight_layout()
         # plt.show()
 
-
-
-    def plot_ortho(self,fpath,ax=None,cmap=None,vmin=None,vmax=None,is_plot_colorbar=True,is_reproj=True):
+    def plot_ortho(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True):
         '''
         :param fpath: tif file
         :param is_reproj: if True, reproject file from 4326 to ortho
@@ -3716,7 +3732,7 @@ class Plot:
         if not is_reproj:
             arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
         else:
-            fpath_ortho = self.ortho_reproj(fpath, fpath+'_ortho-reproj.tif')
+            fpath_ortho = self.ortho_reproj(fpath, fpath + '_ortho-reproj.tif')
             arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_ortho)
             os.remove(fpath_ortho)
         originY1 = copy.copy(originY)
@@ -3735,8 +3751,8 @@ class Plot:
                                        facecolor='None', edgecolor='w', zorder=100, lw=10)
         ax.add_patch(clip_circle)
         ax.add_patch(clip_circle1)
-        m.drawparallels(np.arange(30., 90., 30.), zorder=99,dashes=[2,2],linewidth=0.5)
-        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=99, latmax=90,dashes=[2,2],linewidth=0.5)
+        m.drawparallels(np.arange(30., 90., 30.), zorder=99, dashes=[2, 2], linewidth=0.5)
+        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=99, latmax=90, dashes=[2, 2], linewidth=0.5)
         for obj in meridict:
             line = meridict[obj][0][0]
             line.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
@@ -3749,10 +3765,11 @@ class Plot:
         for poly in polys:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         if is_plot_colorbar:
-            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom',pad=0.0)
-        return m,ret
+            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
+        return m, ret
 
-    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20, c='k', marker='x',
+    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20,
+                                        c='k', marker='x',
                                         zorder=100, res=2):
         fpath_clip = fpath_p + 'clip.tif'
         fpath_spatial_dict = DIC_and_TIF().spatial_tif_to_dic(fpath_p)
@@ -3798,7 +3815,8 @@ class Plot:
         lon_list = lon_list + pixelWidth / 2
         lat_list = lat_list + pixelHeight / 2
         # m,ret = Plot().plot_ortho(fpath,vmin=-0.5,vmax=0.5)
-        m.scatter(lon_list, lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax,linewidths=linewidths)
+        m.scatter(lon_list, lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax,
+                  linewidths=linewidths)
 
         return m
 
@@ -3839,11 +3857,12 @@ class Plot:
     ID["ESRI",102035]]'''
         return wkt
 
-    def ortho_reproj(self,fpath,outf,res=50000):
+    def ortho_reproj(self, fpath, outf, res=50000):
         wkt = self.ortho_wkt()
         srs = DIC_and_TIF().gen_srs_from_wkt(wkt)
         ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
         return outf
+
 
 class ToRaster:
     def __init__(self):
@@ -4048,7 +4067,7 @@ class HANTS:
         '''
         pass
 
-    def __left_consecutive_index(self,values_list,invalid_value):
+    def __left_consecutive_index(self, values_list, invalid_value):
         left_consecutive_non_valid_index = []
         for i in range(len(values_list)):
             if values_list[i] == invalid_value:
@@ -4057,7 +4076,7 @@ class HANTS:
                 break
         return left_consecutive_non_valid_index
 
-    def __right_consecutive_index(self,values_list,invalid_value):
+    def __right_consecutive_index(self, values_list, invalid_value):
         right_consecutive_non_valid_index = []
         for i in range(len(values_list) - 1, -1, -1):
             if values_list[i] == invalid_value:
@@ -4066,7 +4085,7 @@ class HANTS:
                 break
         return right_consecutive_non_valid_index
 
-    def hants_interpolate(self, values_list, dates_list, valid_range,nan_value=np.nan):
+    def hants_interpolate(self, values_list, dates_list, valid_range, nan_value=np.nan):
         '''
         :param values_list: 1D, list of values, multi years
         :param dates_list:  1D, list of dates, corresponding to values_list
@@ -4109,9 +4128,9 @@ class HANTS:
             for vi in v:
                 _values_list_1.append(vi)
         std_i = np.nanmean(_values_list_1)
-        std = 2. * std_i # larger than twice the standard deviation of the input data is rejected
+        std = 2. * std_i  # larger than twice the standard deviation of the input data is rejected
         interpolated_values_list = []
-        for i,values in enumerate(_values_list):
+        for i, values in enumerate(_values_list):
             dates = _dates_list[i]
             xnew, ynew = self.__interp_values_to_DOY(values, dates)
             # print(xnew)
@@ -4121,16 +4140,18 @@ class HANTS:
             # plt.show()
             interpolated_values_list.append(ynew)
 
-
         interpolated_values_list = np.array(interpolated_values_list)
-        results = HANTS().__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0], high=valid_range[1],
-                                fit_error_tolerance=std)
+        results = HANTS().__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0],
+                                  high=valid_range[1],
+                                  fit_error_tolerance=std)
         results_new = []
         for i in range(len(results)):
             results_i = results[i]
-            left_consecutive_non_valid_index = self.__left_consecutive_index(interpolated_values_list[i],valid_range[0])
+            left_consecutive_non_valid_index = self.__left_consecutive_index(interpolated_values_list[i],
+                                                                             valid_range[0])
             # print(left_consecutive_non_valid_index)
-            right_consecutive_non_valid_index = self.__right_consecutive_index(interpolated_values_list[i],valid_range[0])
+            right_consecutive_non_valid_index = self.__right_consecutive_index(interpolated_values_list[i],
+                                                                               valid_range[0])
             results_i_new = []
             for j in range(len(results_i)):
                 if j in left_consecutive_non_valid_index:
@@ -4160,7 +4181,7 @@ class HANTS:
         results_dict = dict(zip(year_list, results_new))
         return results_dict
 
-    def __date_list_to_DOY(self,date_list):
+    def __date_list_to_DOY(self, date_list):
         '''
         :param date_list: list of datetime objects
         :return: list of DOY
@@ -4180,12 +4201,12 @@ class HANTS:
         y_new = func(x_new)
         return x_new, y_new
 
-    def __makediag3d(self,M):
+    def __makediag3d(self, M):
         b = np.zeros((M.shape[0], M.shape[1] * M.shape[1]))
         b[:, ::M.shape[1] + 1] = M
         return b.reshape((M.shape[0], M.shape[1], M.shape[1]))
 
-    def __get_starter_matrix(self,base_period_len, sample_count, frequencies_considered_count):
+    def __get_starter_matrix(self, base_period_len, sample_count, frequencies_considered_count):
         nr = min(2 * frequencies_considered_count + 1,
                  sample_count)  # number of 2*+1 frequencies, or number of input images
         mat = np.zeros(shape=(nr, sample_count))
@@ -4203,12 +4224,12 @@ class HANTS:
             mat[2 * i, column] = sn.take(index)
         return mat
 
-    def __hants(self,sample_count, inputs,
-              frequencies_considered_count=3,
-              outliers_to_reject='Hi',
-              low=0., high=255,
-              fit_error_tolerance=5.,
-              delta=0.1):
+    def __hants(self, sample_count, inputs,
+                frequencies_considered_count=3,
+                outliers_to_reject='Hi',
+                low=0., high=255,
+                fit_error_tolerance=5.,
+                delta=0.1):
         """
         Function to apply the Harmonic analysis of time series applied to arrays
         sample_count    = nr. of images (total number of actual samples of the time series)
@@ -4303,7 +4324,7 @@ class HANTS:
 
 class Dataframe_per_value_transform:
 
-    def __init__(self,df,variable_list,start_year,end_year):
+    def __init__(self, df, variable_list, start_year, end_year):
         self.start_year = start_year
         self.end_year = end_year
         self.variable_list = variable_list
@@ -4323,16 +4344,16 @@ class Dataframe_per_value_transform:
         df = pd.DataFrame()
         df['year'] = year_list_all
         df['pix'] = pix_list_all
-        return df,year_list
+        return df, year_list
 
     def dataframe_per_value(self):
         variable_list = self.variable_list
-        df_,year_list = self.init_void_dataframe()
+        df_, year_list = self.init_void_dataframe()
         pix_list = Tools().get_df_unique_val_list(df_, 'pix')
         nan_list = [np.nan] * len(year_list)
         all_data = {}
         for col in variable_list:
-            spatial_dict = Tools().df_to_spatial_dic(self.df_in,col)
+            spatial_dict = Tools().df_to_spatial_dic(self.df_in, col)
             all_data[col] = spatial_dict
         for var_i in tqdm(variable_list):
             spatial_dict_i = all_data[var_i]
@@ -4348,11 +4369,12 @@ class Dataframe_per_value_transform:
                 if not len(vals) == len(year_list):
                     val_list_all.extend(nan_list)
                     continue
-                for i,v in enumerate(vals):
+                for i, v in enumerate(vals):
                     val_list_all.append(v)
             df_[var_i] = val_list_all
-        df = df_.dropna(subset=variable_list,how='all')
+        df = df_.dropna(subset=variable_list, how='all')
         self.df = df
+
 
 def sleep(t=1):
     time.sleep(t)
