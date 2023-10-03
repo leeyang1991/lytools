@@ -402,9 +402,15 @@ class Tools:
         return val_new
 
     def detrend_vals(self, vals):
-        if True in np.isnan(vals):
+        vals = np.array(vals)
+        if self.is_all_nan(vals):
             return vals
-        return signal.detrend(vals) + np.mean(vals)
+        x = np.arange(len(vals))
+        not_nan_ind = ~np.isnan(vals)
+        m, b, r_val, p_val, std_err = stats.linregress(x[not_nan_ind], vals[not_nan_ind])
+        detrend_vals = vals - (m * x + b)
+        detrend_vals = detrend_vals + np.nanmean(vals)
+        return detrend_vals
 
     def detrend_dic(self, dic):
         dic_new = {}
