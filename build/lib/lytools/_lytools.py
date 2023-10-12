@@ -3869,6 +3869,93 @@ class Plot:
         ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
         return outf
 
+    def plot_Robinson(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=25000):
+        '''
+        :param fpath: tif file
+        :param is_reproj: if True, reproject file from 4326 to Robinson
+        :param res: resolution, meter
+        '''
+        color_list = [
+            '#844000',
+            '#fc9831',
+            '#fffbd4',
+            '#86b9d2',
+            '#064c6c',
+        ]
+        # Blue represents high values, and red represents low values.
+        if ax == None:
+            # plt.figure(figsize=(10, 10))
+            ax = plt.subplot(1, 1, 1)
+        if cmap is None:
+            cmap = Tools().cmap_blend(color_list)
+        if not is_reproj:
+            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath)
+        else:
+            fpath_robinson = self.Robinson_reproj(fpath, fpath + '_robinson-reproj.tif',res=res)
+            arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_robinson)
+            os.remove(fpath_robinson)
+        originY1 = copy.copy(originY)
+        arr = Tools().mask_999999_arr(arr, warning=False)
+        arr_m = ma.masked_where(np.isnan(arr), arr)
+        originX = 0
+        originY = originY * 2
+        lon_list = np.arange(originX, originX + pixelWidth * arr.shape[1], pixelWidth)
+        lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
+        lon_list, lat_list = np.meshgrid(lon_list, lat_list)
+        m = Basemap(projection='robin', lon_0=0, lat_0=90., ax=ax, resolution='c')
+        ret = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
+        m.drawparallels(np.arange(-60., 90., 30.), zorder=99, dashes=[8, 8], linewidth=.5)
+        m.drawparallels((-90., 90.), zorder=99, dashes=[1, 0], linewidth=2)
+        meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=100, latmax=90, dashes=[8, 8], linewidth=.5)
+        meridict = m.drawmeridians((-180,180), zorder=100, latmax=90, dashes=[1, 0], linewidth=2)
+        for obj in meridict:
+            line = meridict[obj][0][0]
+        coastlines = m.drawcoastlines(zorder=100, linewidth=0.2)
+        polys = m.fillcontinents(color='#D1D1D1', lake_color='#EFEFEF',zorder=90)
+        if is_plot_colorbar:
+            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.05)
+        return m, ret
+
+    def Robinson_reproj(self, fpath, outf, res=50000):
+        wkt = self.Robinson_wkt()
+        srs = DIC_and_TIF().gen_srs_from_wkt(wkt)
+        ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
+        return outf
+
+    def Robinson_wkt(self):
+        wkt = '''
+        PROJCRS["Sphere_Robinson",
+    BASEGEOGCRS["Unknown datum based upon the Authalic Sphere",
+        DATUM["Not specified (based on Authalic Sphere)",
+            ELLIPSOID["Sphere",6371000,0,
+                LENGTHUNIT["metre",1]]],
+        PRIMEM["Greenwich",0,
+            ANGLEUNIT["Degree",0.0174532925199433]]],
+    CONVERSION["Sphere_Robinson",
+        METHOD["Robinson"],
+        PARAMETER["Longitude of natural origin",0,
+            ANGLEUNIT["Degree",0.0174532925199433],
+            ID["EPSG",8802]],
+        PARAMETER["False easting",0,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8806]],
+        PARAMETER["False northing",0,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8807]]],
+    CS[Cartesian,2],
+        AXIS["(E)",east,
+            ORDER[1],
+            LENGTHUNIT["metre",1]],
+        AXIS["(N)",north,
+            ORDER[2],
+            LENGTHUNIT["metre",1]],
+    USAGE[
+        SCOPE["Not known."],
+        AREA["World."],
+        BBOX[-90,-180,90,180]],
+    ID["ESRI",53030]]'''
+        return wkt
+
 
 class ToRaster:
     def __init__(self):
