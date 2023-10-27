@@ -3774,30 +3774,29 @@ class Plot:
             cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
         return m, ret
 
-    def plot_ortho_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20,
+    def plot_Robinson_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20,
                                         c='k', marker='x',
                                         zorder=100, res=2):
+
         fpath_clip = fpath_p + 'clip.tif'
-        fpath_spatial_dict = DIC_and_TIF().spatial_tif_to_dic(fpath_p)
+        fpath_spatial_dict = DIC_and_TIF(tif_template=fpath_p).spatial_tif_to_dic(fpath_p)
         D_clip = DIC_and_TIF(tif_template=fpath_p)
         D_clip_lon_lat_pix_dict = D_clip.spatial_tif_to_lon_lat_dic(temp_root)
         fpath_clip_spatial_dict_clipped = {}
         for pix in fpath_spatial_dict:
             lon, lat = D_clip_lon_lat_pix_dict[pix]
-            if lat <= 30 + res:
-                continue
             fpath_clip_spatial_dict_clipped[pix] = fpath_spatial_dict[pix]
-        DIC_and_TIF().pix_dic_to_tif(fpath_clip_spatial_dict_clipped, fpath_clip)
+        DIC_and_TIF(tif_template=fpath_p).pix_dic_to_tif(fpath_clip_spatial_dict_clipped, fpath_clip)
         fpath_resample = fpath_clip + 'resample.tif'
         ToRaster().resample_reproj(fpath_clip, fpath_resample, res=res)
-        fpath_resample_ortho = fpath_resample + 'ortho.tif'
-        self.ortho_reproj(fpath_resample, fpath_resample_ortho, res=res * 100000)
+        fpath_resample_ortho = fpath_resample + 'Robinson.tif'
+        self.Robinson_reproj(fpath_resample, fpath_resample_ortho, res=res * 10000)
         arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_resample_ortho)
 
         arr = Tools().mask_999999_arr(arr, warning=False)
         arr[arr > sig_level] = np.nan
         D_resample = DIC_and_TIF(tif_template=fpath_resample_ortho)
-
+        #
         os.remove(fpath_clip)
         os.remove(fpath_resample_ortho)
         os.remove(fpath_resample)
