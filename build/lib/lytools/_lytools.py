@@ -3775,11 +3775,11 @@ class Plot:
                 bounds = np.linspace(vmin, vmax, colormap_n)
                 norm = mpl.colors.BoundaryNorm(bounds, cmap.N, extend='both')
                 # norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-                cax, kw = mpl.colorbar.make_axes(ax, location='bottom', pad=0.05, shrink=0.5)
+                cax, kw = mpl.colorbar.make_axes(ax, location='bottom', pad=0, shrink=0.5)
                 cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, boundaries=bounds, ticks=bounds,
                                                  orientation='horizontal')
             else:
-                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
+                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0)
 
         return m, ret
 
@@ -3928,7 +3928,7 @@ class Plot:
                 cax,kw = mpl.colorbar.make_axes(ax,location='bottom',pad=0.05,shrink=0.5)
                 cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, boundaries=bounds, ticks=bounds, orientation='horizontal')
             else:
-                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
+                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.05)
         return m, ret
 
     def Robinson_reproj(self, fpath, outf, res=50000):
