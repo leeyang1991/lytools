@@ -3718,7 +3718,7 @@ class Plot:
         # plt.tight_layout()
         # plt.show()
 
-    def plot_ortho(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True):
+    def plot_ortho(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,is_discrete=False,colormap_n=11):
         '''
         :param fpath: tif file
         :param is_reproj: if True, reproject file from 4326 to ortho
@@ -3771,7 +3771,16 @@ class Plot:
         for poly in polys:
             poly.set_clip_path(clip_circle.get_path(), clip_circle.get_transform())
         if is_plot_colorbar:
-            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
+            if is_discrete:
+                bounds = np.linspace(vmin, vmax, colormap_n)
+                norm = mpl.colors.BoundaryNorm(bounds, cmap.N, extend='both')
+                # norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+                cax, kw = mpl.colorbar.make_axes(ax, location='bottom', pad=0.05, shrink=0.5)
+                cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, boundaries=bounds, ticks=bounds,
+                                                 orientation='horizontal')
+            else:
+                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
+
         return m, ret
 
     def plot_Robinson_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20,
@@ -3790,7 +3799,7 @@ class Plot:
         fpath_resample = fpath_clip + 'resample.tif'
         ToRaster().resample_reproj(fpath_clip, fpath_resample, res=res)
         fpath_resample_ortho = fpath_resample + 'Robinson.tif'
-        self.Robinson_reproj(fpath_resample, fpath_resample_ortho, res=res * 10000)
+        self.Robinson_reproj(fpath_resample, fpath_resample_ortho, res=res * 100000)
         arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_resample_ortho)
 
         arr = Tools().mask_999999_arr(arr, warning=False)
@@ -3868,7 +3877,7 @@ class Plot:
         ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
         return outf
 
-    def plot_Robinson(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=25000):
+    def plot_Robinson(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=25000,is_discrete=False,colormap_n=11):
         '''
         :param fpath: tif file
         :param is_reproj: if True, reproject file from 4326 to Robinson
@@ -3901,8 +3910,8 @@ class Plot:
         lon_list = np.arange(originX, originX + pixelWidth * arr.shape[1], pixelWidth)
         lat_list = np.arange(originY, originY + pixelHeight * arr.shape[0], pixelHeight)
         lon_list, lat_list = np.meshgrid(lon_list, lat_list)
-        m = Basemap(projection='robin', lon_0=0, lat_0=90., ax=ax, resolution='c')
-        ret = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
+        m = Basemap(projection='robin', lon_0=0, lat_0=90., ax=ax, resolution='i')
+        ret = m.pcolormesh(lon_list, lat_list, arr_m, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax,)
         m.drawparallels(np.arange(-60., 90., 30.), zorder=99, dashes=[8, 8], linewidth=.5)
         m.drawparallels((-90., 90.), zorder=99, dashes=[1, 0], linewidth=2)
         meridict = m.drawmeridians(np.arange(0., 420., 60.), zorder=100, latmax=90, dashes=[8, 8], linewidth=.5)
@@ -3912,7 +3921,14 @@ class Plot:
         coastlines = m.drawcoastlines(zorder=100, linewidth=0.2)
         polys = m.fillcontinents(color='#D1D1D1', lake_color='#EFEFEF',zorder=90)
         if is_plot_colorbar:
-            cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.05)
+            if is_discrete:
+                bounds = np.linspace(vmin, vmax, colormap_n)
+                norm = mpl.colors.BoundaryNorm(bounds, cmap.N, extend='both')
+                # norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+                cax,kw = mpl.colorbar.make_axes(ax,location='bottom',pad=0.05,shrink=0.5)
+                cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, boundaries=bounds, ticks=bounds, orientation='horizontal')
+            else:
+                cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.0)
         return m, ret
 
     def Robinson_reproj(self, fpath, outf, res=50000):
