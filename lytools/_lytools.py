@@ -4044,6 +4044,40 @@ class Plot:
                 cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.05)
         return m, ret
 
+    def plot_China_Albers_significance_scatter(self, m, fpath_p, temp_root, sig_level=0.05, ax=None, linewidths=0.5, s=20,
+                                        c='k', marker='x', zorder=101, res=1.5):
+
+        fpath_spatial_dict = DIC_and_TIF(tif_template=fpath_p).spatial_tif_to_dic(fpath_p)
+        D_clip = DIC_and_TIF(tif_template=fpath_p)
+        D_clip_lon_lat_pix_dict = D_clip.spatial_tif_to_lon_lat_dic(temp_root)
+        fpath_resample = fpath_p + 'resample.tif'
+        ToRaster().resample_reproj(fpath_p, fpath_resample, res=res)
+        arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_resample)
+
+        arr = Tools().mask_999999_arr(arr, warning=False)
+        arr[arr > sig_level] = np.nan
+        D_resample = DIC_and_TIF(tif_template=fpath_resample)
+        os.remove(fpath_resample)
+
+        spatial_dict = D_resample.spatial_arr_to_dic(arr)
+        lon_lat_pix_dict = D_resample.spatial_tif_to_lon_lat_dic(temp_root)
+
+        lon_list = []
+        lat_list = []
+        for pix in spatial_dict:
+            val = spatial_dict[pix]
+            if np.isnan(val):
+                continue
+            lon, lat = lon_lat_pix_dict[pix]
+            lon = lon + pixelWidth / 2
+            lat = lat + pixelHeight / 2
+            lon_projtran, lat_projtran = m.projtran(lon,lat)
+            lon_list.append(lon_projtran)
+            lat_list.append(lat_projtran)
+        m.scatter(lon_list,lat_list, latlon=False, s=s, c=c, zorder=zorder, marker=marker, ax=ax,
+                  linewidths=linewidths)
+        return m
+
 
 class ToRaster:
     def __init__(self):
