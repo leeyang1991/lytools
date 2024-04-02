@@ -3971,7 +3971,7 @@ class Plot:
     ID["ESRI",53030]]'''
         return wkt
 
-    def plot_China_Albers(self, fpath, in_shpfile,ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=10000,is_discrete=False,colormap_n=11):
+    def plot_China_Albers(self, fpath, in_shpfile,shp_provinces_f,ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=10000,is_discrete=False,colormap_n=11):
         '''
         :param fpath: tif file
         :param is_reproj: if True, reproject file from 4326 to Robinson
@@ -4004,7 +4004,7 @@ class Plot:
         lon_list = lon_list + pixelWidth_deg / 2
 
         m = Basemap(projection='aea', ax=ax, resolution='i',
-                    llcrnrlon=83, llcrnrlat=0, urcrnrlon=150, urcrnrlat=50,
+                    llcrnrlon=80, llcrnrlat=14, urcrnrlon=140, urcrnrlat=52,
                     lon_0=105,lat_0=0,lat_1=25,lat_2=47)
         lon_matrix = []
         lat_matrix = []
@@ -4025,10 +4025,13 @@ class Plot:
         ret = m.pcolormesh(lon_matrix, lat_matrix, arr_deg.T, cmap=cmap, zorder=99, vmin=vmin, vmax=vmax)
         shp_f = in_shpfile
         m.readshapefile(shp_f,'a', drawbounds=True, linewidth=0.5, color='k', zorder=100)
-        m.drawparallels(np.arange(-60., 90., 20.), zorder=99, dashes=[8, 8], linewidth=.5)
-        m.drawparallels((-90., 90.), zorder=99, dashes=[1, 0], linewidth=2)
-        meridict = m.drawmeridians(np.arange(0., 420., 20.), zorder=100, latmax=90, dashes=[8, 8], linewidth=.5)
-        meridict = m.drawmeridians((-180,180), zorder=100, latmax=90, dashes=[1, 0], linewidth=2)
+        m.readshapefile(shp_provinces_f, 'ooo', drawbounds=True, linewidth=0.3, color='k', zorder=100)
+        # m.drawparallels(np.arange(-60., 90., 20.), zorder=99, dashes=[8, 8], linewidth=.5)
+        # m.drawparallels((-90., 90.), zorder=99, dashes=[1, 0], linewidth=2)
+        # meridict = m.drawmeridians(np.arange(0., 420., 20.), zorder=100, latmax=90, dashes=[8, 8], linewidth=.5)
+        # meridict = m.drawmeridians((-180,180), zorder=100, latmax=90, dashes=[1, 0], linewidth=2)
+        plt.axis('off')
+
         # for obj in meridict:
         #     line = meridict[obj][0][0]
         # coastlines = m.drawcoastlines(zorder=100, linewidth=0.2)
@@ -4036,9 +4039,10 @@ class Plot:
         if is_plot_colorbar:
             if is_discrete:
                 bounds = np.linspace(vmin, vmax, colormap_n)
-                norm = mpl.colors.BoundaryNorm(bounds, cmap.N, extend='both')
-                # norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+                # norm = mpl.colors.BoundaryNorm(bounds, cmap.N, extend='both')
+                norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
                 cax,kw = mpl.colorbar.make_axes(ax,location='bottom',pad=0.05,shrink=0.5)
+                # cax,kw = mpl.colorbar.make_axes(ax,location='bottom',pad=0.05)
                 cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, boundaries=bounds, ticks=bounds, orientation='horizontal')
             else:
                 cbar = plt.colorbar(ret, ax=ax, shrink=0.5, location='bottom', pad=0.05)
