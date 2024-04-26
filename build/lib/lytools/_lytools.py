@@ -1446,7 +1446,7 @@ class Tools:
             return cross_df_dict
 
     def resample_nan(self, array, target_res, original_res, nan_value=-999999):
-        array = array.astype(np.float32)
+        array = array.astype(float)
         array[array == nan_value] = np.nan
         window_len = int(target_res / original_res)
         array_row_new = len(array) / window_len
@@ -1660,7 +1660,7 @@ class Tools:
     def df_bin(self, df, col, bins):
         df_copy = df.copy()
         df_copy[f'{col}_bins'] = pd.cut(df[col], bins=bins)
-        df_group = df_copy.groupby([f'{col}_bins'])
+        df_group = df_copy.groupby([f'{col}_bins'],observed=True)
         bins_name = df_group.groups.keys()
         bins_name_list = list(bins_name)
         bins_list_str = [str(i) for i in bins_name_list]
@@ -1746,7 +1746,7 @@ class Tools:
 
     def df_groupby(self, df, col):
         assert col in df.columns
-        df_groupby = df.groupby(col)
+        df_groupby = df.groupby(col, observed=True)
         df_group_dict = {}
         for name, group in df_groupby:
             df_group_dict[name] = group
@@ -3154,7 +3154,7 @@ class Pre_Process:
                     if f.split('.')[0] == d:
                         # print(d)
                         array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(join(fdir, f))
-                        array = np.array(array, dtype=np.float)
+                        array = np.array(array, dtype=float)
                         # print np.min(array)
                         # print type(array)
                         # plt.imshow(array)
@@ -3212,7 +3212,7 @@ class Pre_Process:
             f = os.path.join(fdir, d)
             if os.path.isfile(f):
                 array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(f)
-                array = np.array(array, dtype=np.float)
+                array = np.array(array, dtype=float)
                 all_array.append(array)
             else:
                 all_array.append(void_arr)
@@ -3461,7 +3461,7 @@ class Pre_Process:
             clean_dic = {}
             for pix in dic:
                 val = dic[pix]
-                val = np.array(val, dtype=np.float)
+                val = np.array(val, dtype=float)
                 val[val < -9999] = np.nan
                 if mode == 'linear':
                     new_val = Tools().interp_nan(val, kind='linear')
@@ -3504,7 +3504,7 @@ class Pre_Process:
         spatial_dic = {}
         for pix in tqdm(void_dic, desc='calculating mean...'):
             vals = void_dic[pix]
-            vals = np.array(vals, dtype=np.float)
+            vals = np.array(vals, dtype=float)
             vals[vals < less_than] = np.nan
             if method == 'mean':
                 compose_val = np.nanmean(vals)
