@@ -4,7 +4,7 @@ from setuptools import setup
 long_description = open('README.md').read()
 setup(
     name='lytools',
-    version='0.0.105',
+    version='0.0.106',
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Yang Li',
@@ -24,5 +24,7 @@ setup(
     'requests',
     'outdated',
     'basemap',
+    'netCDF4',
+    'psutil',
     ],
 )

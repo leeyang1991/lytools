@@ -1209,6 +1209,8 @@ class Tools:
         for one_year_vals in monthly_vals_reshape_gs:
             if self.is_all_nan(one_year_vals):
                 annual_val = np.nan
+                if method == 'array':
+                    annual_val = np.array(one_year_vals)
             else:
                 if method == 'mean':
                     annual_val = np.nanmean(one_year_vals)
@@ -4602,6 +4604,13 @@ def sleep(t=1):
 def pause():
     # ANSI colors: https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
     input('\33[7m' + "PRESS ENTER TO CONTINUE." + '\33[0m')
+
+def join(*args):
+    args_new = []
+    for path in args:
+        path_new = path.replace('\\','/')
+        args_new.append(path_new)
+    return os.path.join(*args_new)
 
 
 def run_ly_tools():

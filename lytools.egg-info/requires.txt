@@ -9,3 +9,5 @@ scikit-learn
 requests
 outdated
 basemap
+netCDF4
+psutil
