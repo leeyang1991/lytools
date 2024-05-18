@@ -1804,6 +1804,9 @@ class Tools:
         assert len(keys) == len(vals)
         return dict(zip(keys, vals))
 
+    def df_drop_duplicates(self, df, cols:list,**kwargs):
+        df = df.drop_duplicates(subset=cols,**kwargs)
+        return df
 
 class SMOOTH:
     '''
