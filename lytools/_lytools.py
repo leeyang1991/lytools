@@ -30,7 +30,6 @@ import types
 import math
 import copy
 import random
-import requests
 import pickle
 import time
 import datetime
@@ -235,16 +234,7 @@ class Tools:
                 return add
 
     def __lonlat_to_address(self, lon, lat):
-        print('\33[7m' + "getting address from BaiDu." + '\33[0m')
-        ak = "mziulWyNDGkBdDnFxWDTvELlMSun8Obt"  # 参照自己的应用
-        url = 'http://api.map.baidu.com/reverse_geocoding/v3/?ak=mziulWyNDGkBdDnFxWDTvELlMSun8Obt&output=json&coordtype=wgs84ll&location=%s,%s' % (
-            lat, lon)
-        content = requests.get(url).text
-        dic = eval(content)
-        add = dic['result']['formatted_address']
-        if len(add) == 0:
-            return 'None'
-        return add
+        return None
 
     def spatial_arr_filter_n_sigma(self, spatial_arr, n=3):
         arr_std = np.nanstd(spatial_arr)
@@ -3140,9 +3130,7 @@ class Pre_Process:
 
     def data_transform(self, fdir, outdir, n=10000):
         n = int(n)
-        # 不可并行，内存不足
         Tools().mkdir(outdir)
-        # 将空间图转换为数组
         # per_pix_data
         flist = Tools().listdir(fdir)
         date_list = []
@@ -3160,34 +3148,26 @@ class Pre_Process:
                         # print(d)
                         array, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(join(fdir, f))
                         array = np.array(array, dtype=float)
-                        # print np.min(array)
-                        # print type(array)
-                        # plt.imshow(array)
-                        # plt.show()
                         all_array.append(array)
 
         row = len(all_array[0])
         col = len(all_array[0][0])
-
+        all_array = np.array(all_array)
+        all_array_T = all_array.T
         void_dic = {}
         void_dic_list = []
-        for r in range(row):
-            for c in range(col):
-                void_dic[(r, c)] = []
-                void_dic_list.append((r, c))
-
-        # print(len(void_dic))
-        # exit()
-        params = []
         for r in tqdm(list(range(row))):
             for c in range(col):
-                for arr in all_array:
-                    val = arr[r][c]
-                    void_dic[(r, c)].append(val)
-
-        # for i in void_dic_list:
-        #     print(i)
-        # exit()
+                time_series = all_array_T[c][r]
+                time_series = np.array(time_series)
+                # if np.nanstd(time_series) == 0:
+                #     continue
+                # time_series[time_series<-99999] = np.nan
+                # time_series = time_series[~np.isnan(time_series)]
+                # if len(time_series) == 0:
+                #     continue
+                void_dic_list.append((r, c))
+                void_dic[(r, c)] = time_series
         flag = 0
         temp_dic = {}
         for key in tqdm(void_dic_list, 'saving...'):
@@ -3204,10 +3184,8 @@ class Pre_Process:
 
     def data_transform_with_date_list(self, fdir, outdir, date_list, n=10000):
         n = int(n)
-        # 不可并行，内存不足
         Tools().mkdir(outdir)
         outdir = outdir + '/'
-        # 将空间图转换为数组
         template_f = os.path.join(fdir, Tools().listdir(fdir)[0])
         template_arr = ToRaster().raster2array(template_f)[0]
         void_arr = np.ones_like(template_arr) * np.nan
@@ -3227,22 +3205,22 @@ class Pre_Process:
 
         row = len(all_array[0])
         col = len(all_array[0][0])
-
+        all_array = np.array(all_array)
+        all_array_T = all_array.T
         void_dic = {}
         void_dic_list = []
-        for r in range(row):
+        for r in tqdm(list(range(row))):
             for c in range(col):
-                void_dic[(r, c)] = []
+                time_series = all_array_T[c][r]
+                time_series = np.array(time_series)
+                # if np.nanstd(time_series) == 0:
+                #     continue
+                # time_series[time_series<-99999] = np.nan
+                # time_series = time_series[~np.isnan(time_series)]
+                # if len(time_series) == 0:
+                #     continue
                 void_dic_list.append((r, c))
-
-        # print(len(void_dic))
-        # exit()
-        params = []
-        for r in tqdm(range(row)):
-            for c in range(col):
-                for arr in all_array:
-                    val = arr[r][c]
-                    void_dic[(r, c)].append(val)
+                void_dic[(r, c)] = time_series
 
         # for i in void_dic_list:
         #     print(i)

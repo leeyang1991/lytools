@@ -6,7 +6,6 @@ numpy
 outdated
 pandas
 psutil
-requests
 scikit-learn
 scipy
 seaborn
