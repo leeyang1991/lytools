@@ -3656,6 +3656,38 @@ class Plot:
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1, y1
 
+    def plot_hist_smooth_colorful(self, arr, interpolate_window=5, palette='PiYG',color_range=None, **kwargs):
+        weights = np.ones_like(arr) / float(len(arr))
+        n1,x1,patches = plt.hist(arr,weights=weights,**kwargs)
+        color_list = Tools().gen_colors(len(patches),palette=palette)
+        if not color_range is None:
+            range_min = color_range[0]
+            range_max = color_range[-1]
+        else:
+            range_min = np.nanmin(arr)
+            range_max = np.nanmax(arr)
+        left = 0
+        right = 0
+        for i, p in enumerate(patches):
+            x_pos = p.xy[0]
+            if x_pos < range_min:
+                left += 1
+            elif x_pos > range_max:
+                right += 1
+            p.set_facecolor(color_list[i])
+
+        color_list_new = Tools().gen_colors(len(patches) - left - right, palette=palette)
+        for i,p in enumerate(patches):
+            x_pos = p.xy[0]
+            if x_pos < range_min:
+                p.set_facecolor(color_list[0])
+                continue
+            elif x_pos > range_max:
+                p.set_facecolor(color_list[-1])
+                continue
+            else:
+                p.set_facecolor(color_list_new[i-left])
+
     def multi_step_pdf(self, df, pdf_colname, bin_colname, bins, pdf_bin_n=40, pdf_range=None, discard_limit_n=10,
                        blend_color_list=('#ABD3E0', '#EFDDE2', '#DC9AA2')):
         flag = 0
