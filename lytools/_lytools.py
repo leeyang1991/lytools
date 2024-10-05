@@ -3656,7 +3656,7 @@ class Plot:
         y1 = SMOOTH().smooth_convolve(y1, interpolate_window)
         return x1, y1
 
-    def plot_hist_smooth_colorful(self, arr, interpolate_window=5, palette='PiYG',color_range=None,hist_range=None, **kwargs):
+    def plot_hist_smooth_colorful(self, arr, palette='PiYG',color_range=None,hist_range=None, **kwargs):
 
         if hist_range is None:
             min_v = np.nanmin(arr)
