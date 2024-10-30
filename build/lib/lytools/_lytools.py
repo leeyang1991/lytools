@@ -1693,7 +1693,8 @@ class Tools:
         x_ticks_list.sort()
         return matrix_dict,x_ticks_list,y_ticks_list
 
-    def plot_df_bin_2d_matrix(self,matrix_dict,vmin,vmax,x_ticks_list,y_ticks_list,cmap='RdBu'):
+    def plot_df_bin_2d_matrix(self,matrix_dict,vmin,vmax,x_ticks_list,y_ticks_list,cmap='RdBu',
+                              is_only_return_matrix=False):
         keys = list(matrix_dict.keys())
         r_list = []
         c_list = []
@@ -1719,6 +1720,8 @@ class Tools:
 
         matrix = np.array(spatial, dtype=float)
         matrix = matrix[::-1]
+        if is_only_return_matrix:
+            return matrix
         plt.imshow(matrix,cmap='RdBu',vmin=vmin,vmax=vmax)
         plt.xticks(range(len(c_list)), x_ticks_list)
         plt.yticks(range(len(r_list)), y_ticks_list[::-1])
