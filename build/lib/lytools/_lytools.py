@@ -1665,6 +1665,79 @@ class Tools:
         #     err_list.append(err)
         return df_group, bins_list_str
 
+    def df_bin_2d(self,df,val_col_name,col_name_x,col_name_y,bin_x,bin_y,round_x=2,round_y=2):
+        df_group_y, _ = self.df_bin(df, col_name_y, bin_y)
+        matrix_dict = {}
+        y_ticks_list = []
+        x_ticks_dict = {}
+        flag1 = 0
+        for name_y, df_group_y_i in df_group_y:
+            matrix_i = []
+            y_ticks = (name_y[0].left + name_y[0].right) / 2
+            y_ticks = np.round(y_ticks, round_y)
+            y_ticks_list.append(y_ticks)
+            df_group_x, _ = self.df_bin(df_group_y_i, col_name_x, bin_x)
+            flag2 = 0
+            for name_x, df_group_x_i in df_group_x:
+                vals = df_group_x_i[val_col_name].tolist()
+                rt_mean = np.nanmean(vals)
+                matrix_i.append(rt_mean)
+                x_ticks = (name_x[0].left + name_x[0].right) / 2
+                x_ticks = np.round(x_ticks, round_x)
+                x_ticks_dict[x_ticks] = 0
+                key = (flag1, flag2)
+                matrix_dict[key] = rt_mean
+                flag2 += 1
+            flag1 += 1
+        x_ticks_list = list(x_ticks_dict.keys())
+        x_ticks_list.sort()
+        return matrix_dict,x_ticks_list,y_ticks_list
+
+    def plot_df_bin_2d_matrix(self,matrix_dict,vmin,vmax,x_ticks_list,y_ticks_list,cmap='RdBu'):
+        keys = list(matrix_dict.keys())
+        r_list = []
+        c_list = []
+        for r, c in keys:
+            r_list.append(r)
+            c_list.append(c)
+        r_list = set(r_list)
+        c_list = set(c_list)
+
+        row = len(r_list)
+        col = len(c_list)
+        spatial = []
+        for r in range(row):
+            temp = []
+            for c in range(col):
+                key = (r, c)
+                if key in matrix_dict:
+                    val_pix = matrix_dict[key]
+                    temp.append(val_pix)
+                else:
+                    temp.append(np.nan)
+            spatial.append(temp)
+
+        matrix = np.array(spatial, dtype=float)
+        matrix = matrix[::-1]
+        plt.imshow(matrix,cmap='RdBu',vmin=vmin,vmax=vmax)
+        plt.xticks(range(len(c_list)), x_ticks_list)
+        plt.yticks(range(len(r_list)), y_ticks_list[::-1])
+
+    def plot_df_bin_2d_scatter(self,matrix_dict,vmin,vmax,x_ticks_list,y_ticks_list,cmap='RdBu',
+                               is_x_quantile=False,
+                               is_y_quantile=False):
+        for y,x in matrix_dict.keys():
+            val = matrix_dict[(y,x)]
+            if is_x_quantile:
+                x_pos = x / (len(x_ticks_list) - 1) * 100
+            else:
+                x_pos = x_ticks_list[x]
+            if is_y_quantile:
+                y_pos = y / (len(y_ticks_list) - 1) * 100
+            else:
+                y_pos = y_ticks_list[y]
+            plt.scatter(x_pos,y_pos,c=val,vmin=vmin,vmax=vmax,cmap=cmap,marker='s',linewidths=0)
+
     def ANOVA_test(self, *args, method: str):
         if method == 'f_oneway':
             return stats.f_oneway(*args)
