@@ -673,6 +673,31 @@ class Tools:
         file.write(spatialRef.ExportToWkt())
         file.close()
 
+    def read_point_shp(self, shpfn):
+        shpDriver = ogr.GetDriverByName("ESRI Shapefile")
+        dataSource = shpDriver.Open(shpfn, 0)
+        layer = dataSource.GetLayer()
+        featureCount = layer.GetFeatureCount()
+        shp_layer_dict = {}
+        flag = 0
+        for feature in layer:
+            geom = feature.GetGeometryRef()
+            x = geom.GetX()
+            y = geom.GetY()
+            shp_layer_dict_i = {
+                'point_x_pos': x,
+                'point_y_pos': y,
+            }
+            field_count = feature.GetFieldCount()
+            for i in range(field_count):
+                field = feature.GetField(i)
+                field_name = feature.GetFieldDefnRef(i).GetName()
+                shp_layer_dict_i[field_name] = field
+            shp_layer_dict[flag] = shp_layer_dict_i
+            flag += 1
+        df = self.dic_to_df(shp_layer_dict,'point_idx')
+        return df
+
     def show_df_all_columns(self):
         pd.set_option('display.max_columns', None)
         pass
