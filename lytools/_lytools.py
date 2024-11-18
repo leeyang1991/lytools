@@ -1891,8 +1891,11 @@ class Tools:
         plt.tight_layout()
         plt.show()
 
-    def dict_zip(self, keys, vals):
+    def dict_zip(self, keys, vals, allow_duplicates_keys=False):
         assert len(keys) == len(vals)
+        assert len(keys) > 0
+        if not allow_duplicates_keys:
+            assert len(set(keys)) == len(keys)
         return dict(zip(keys, vals))
 
     def df_drop_duplicates(self, df, cols:list,**kwargs):
