@@ -12,7 +12,6 @@ from tqdm import tqdm
 from scipy import stats
 from scipy.stats import gaussian_kde as kde
 from scipy import interpolate
-from scipy import signal
 
 import pandas as pd
 
@@ -44,7 +43,6 @@ from osgeo import ogr
 from osgeo import gdal
 
 import matplotlib as mpl
-from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import pyplot as plt
 from mpl_toolkits.basemap import Basemap
@@ -624,7 +622,8 @@ class Tools:
                 # outFeature.SetField('val', inputlist[i][2])
                 # 加坐标系
                 spatialRef = osr.SpatialReference()
-                spatialRef.ImportFromEPSG(4326)
+                wkt_84=DIC_and_TIF().wkt_84()
+                spatialRef.ImportFromWkt(wkt_84)
                 spatialRef.MorphToESRI()
                 file = open(outSHPfn[:-4] + '.prj', 'w')
                 file.write(spatialRef.ExportToWkt())
@@ -667,7 +666,8 @@ class Tools:
 
         # define the spatial reference, WGS84
         spatialRef = osr.SpatialReference()
-        spatialRef.ImportFromEPSG(4326)
+        wkt_84 = DIC_and_TIF().wkt_84()
+        spatialRef.ImportFromWkt(wkt_84)
         spatialRef.MorphToESRI()
         file = open(outSHPfn[:-4] + '.prj', 'w')
         file.write(spatialRef.ExportToWkt())
@@ -2764,7 +2764,7 @@ class DIC_and_TIF:
         newRasterfn = out_tif
         ToRaster().array2raster(newRasterfn, -180, 90, pixelWidth, pixelHeight, array_unify_left_right, ndv=ndv)
 
-    def unify_raster1(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):  # todo: need to be tested
+    def unify_raster1(self, in_tif, out_tif, res, srcSRS, dstSRS):  # todo: need to be tested
         row = len(self.arr_template)
         col = len(self.arr_template[0])
         sY = self.originY
@@ -2775,7 +2775,7 @@ class DIC_and_TIF:
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, srcSRS=srcSRS, dstSRS=dstSRS, outputBounds=extent)
 
-    def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
+    def resample_reproj(self, in_tif, out_tif, res, srcSRS, dstSRS):
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
@@ -2939,6 +2939,35 @@ class DIC_and_TIF:
             area = upper_left_to_upper_right * upper_left_to_lower_left
             area_dict[pix] = area
         return area_dict
+
+    def wkt_84(self):
+        wkt = '''GEOGCRS["WGS 84",
+    ENSEMBLE["World Geodetic System 1984 ensemble",
+        MEMBER["World Geodetic System 1984 (Transit)"],
+        MEMBER["World Geodetic System 1984 (G730)"],
+        MEMBER["World Geodetic System 1984 (G873)"],
+        MEMBER["World Geodetic System 1984 (G1150)"],
+        MEMBER["World Geodetic System 1984 (G1674)"],
+        MEMBER["World Geodetic System 1984 (G1762)"],
+        MEMBER["World Geodetic System 1984 (G2139)"],
+        ELLIPSOID["WGS 84",6378137,298.257223563,
+            LENGTHUNIT["metre",1]],
+        ENSEMBLEACCURACY[2.0]],
+    PRIMEM["Greenwich",0,
+        ANGLEUNIT["degree",0.0174532925199433]],
+    CS[ellipsoidal,2],
+        AXIS["geodetic latitude (Lat)",north,
+            ORDER[1],
+            ANGLEUNIT["degree",0.0174532925199433]],
+        AXIS["geodetic longitude (Lon)",east,
+            ORDER[2],
+            ANGLEUNIT["degree",0.0174532925199433]],
+    USAGE[
+        SCOPE["Horizontal component of 3D system."],
+        AREA["World."],
+        BBOX[-90,-180,90,180]],
+    ID["EPSG",4326]]'''
+        return wkt
 
 
 class MULTIPROCESS:
@@ -3929,7 +3958,7 @@ class Plot:
             fpath_clip_spatial_dict_clipped[pix] = fpath_spatial_dict[pix]
         DIC_and_TIF().pix_dic_to_tif(fpath_clip_spatial_dict_clipped, fpath_clip)
         fpath_resample = fpath_clip + 'resample.tif'
-        ToRaster().resample_reproj(fpath_clip, fpath_resample, res=res)
+        ToRaster().resample_reproj(fpath_clip, fpath_resample, res=res,srcSRS=None, dstSRS=None)
         fpath_resample_ortho = fpath_resample + 'ortho.tif'
         self.ortho_reproj(fpath_resample, fpath_resample_ortho, res=res * 100000)
         arr, originX, originY, pixelWidth, pixelHeight = ToRaster().raster2array(fpath_resample_ortho)
@@ -4055,8 +4084,10 @@ class Plot:
 
     def ortho_reproj(self, fpath, outf, res=50000):
         wkt = self.ortho_wkt()
-        srs = DIC_and_TIF().gen_srs_from_wkt(wkt)
-        ToRaster().resample_reproj(fpath, outf, res, dstSRS=srs)
+        wkt84 = DIC_and_TIF().wkt_84()
+        dstSRS = DIC_and_TIF().gen_srs_from_wkt(wkt)
+        srcSRS = DIC_and_TIF().gen_srs_from_wkt(wkt84)
+        ToRaster().resample_reproj(fpath, outf, res, srcSRS,dstSRS)
         return outf
 
     def plot_Robinson(self, fpath, ax=None, cmap=None, vmin=None, vmax=None, is_plot_colorbar=True, is_reproj=True,res=25000,is_discrete=False,colormap_n=11):
@@ -4315,8 +4346,10 @@ class ToRaster:
         outband.SetNoDataValue(ndv)
         outband.WriteArray(array)
         outRasterSRS = osr.SpatialReference()
-        outRasterSRS.ImportFromEPSG(4326)
-        outRaster.SetProjection(outRasterSRS.ExportToWkt())
+        # outRasterSRS.ImportFromEPSG(4326)
+        wkt_84 = DIC_and_TIF().wkt_84()
+        outRasterSRS.ImportFromWkt(wkt_84)
+        outRaster.SetProjection(wkt_84)
         # Close Geotiff
         outband.FlushCache()
         del outRaster
@@ -4342,8 +4375,8 @@ class ToRaster:
         outband.SetNoDataValue(ndv)
         outband.WriteArray(array)
         outRasterSRS = osr.SpatialReference()
-        outRasterSRS.ImportFromEPSG(4326)
-        outRaster.SetProjection(outRasterSRS.ExportToWkt())
+        # outRasterSRS.ImportFromEPSG(4326)
+        outRaster.SetProjection(DIC_and_TIF().wkt_84())
         # Close Geotiff
         outband.FlushCache()
         del outRaster
@@ -4455,7 +4488,7 @@ class ToRaster:
         longitude_start, latitude_start, pixelWidth, pixelHeight = originX, originY, pixelWidth, pixelHeight
         self.array2raster(out_raster, longitude_start, latitude_start, pixelWidth, pixelHeight, in_arr)
 
-    def resample_reproj(self, in_tif, out_tif, res, srcSRS='EPSG:4326', dstSRS='EPSG:4326'):
+    def resample_reproj(self, in_tif, out_tif, res, srcSRS=None, dstSRS=None):
         dataset = gdal.Open(in_tif)
         gdal.Warp(out_tif, dataset, xRes=res, yRes=res, srcSRS=srcSRS, dstSRS=dstSRS)
 
