@@ -1902,6 +1902,9 @@ class Tools:
         df = df.drop_duplicates(subset=cols,**kwargs)
         return df
 
+    def sort_dict_by_value(self, input_dict,descending=True):
+        return dict(sorted(input_dict.items(), key=lambda item: item[1], reverse=descending))
+
 class SMOOTH:
     '''
     一些平滑算法
