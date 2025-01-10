@@ -1,10 +1,19 @@
 # coding='utf-8'
 
 from setuptools import setup
+
+def get_version():
+    init_f = './lytools/__init__.py'
+    with open(init_f) as f:
+        for line in f:
+            if line.startswith('__version__'):
+                return line.split('=')[-1].strip().strip("'")
+version = get_version()
+
 long_description = open('README.md').read()
 setup(
     name='lytools',
-    version='0.0.121',
+    version=version,
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Yang Li',
