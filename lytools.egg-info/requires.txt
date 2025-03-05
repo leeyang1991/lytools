@@ -10,3 +10,4 @@ outdated
 basemap
 netCDF4
 psutil
+openpyxl

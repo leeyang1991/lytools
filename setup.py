@@ -34,5 +34,6 @@ setup(
     'basemap',
     'netCDF4',
     'psutil',
+    'openpyxl',
     ],
 )

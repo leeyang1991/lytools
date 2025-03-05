@@ -4384,6 +4384,33 @@ class ToRaster:
         outband.FlushCache()
         del outRaster
 
+    def raster2array_multiple_bands(self, rasterfn):
+        '''
+        create array from raster
+        Agrs:
+            rasterfn: tiff file path
+        Returns:
+            array: tiff data, an 2D array
+        '''
+        raster = gdal.Open(rasterfn)
+        geotransform = raster.GetGeoTransform()
+        originX = geotransform[0]
+        originY = geotransform[3]
+        pixelWidth = geotransform[1]
+        pixelHeight = geotransform[5]
+        band_num = raster.RasterCount
+        band_list = []
+        band_name_list = []
+        for band in range(1,band_num + 1):
+            band = raster.GetRasterBand(band)
+            band_name = band.GetDescription()
+            band_name_list.append(band_name)
+            array = band.ReadAsArray()
+            array = np.asarray(array)
+            band_list.append(array)
+        del raster
+        return band_list,band_name_list, originX, originY, pixelWidth, pixelHeight
+
     def array2raster_polar(self, newRasterfn, longitude_start, latitude_start, pixelWidth, pixelHeight, array,
                            ndv=-999999):
         cols = array.shape[1]

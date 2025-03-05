@@ -1,12 +1,32 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: lytools
-Version: 0.0.122
+Version: 0.0.123
 Home-page: https://github.com/leeyang1991/lytools
 Author: Yang Li
 Author-email: leeyang1991@gmail.com
 Requires-Python: >=3
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: gdal
+Requires-Dist: tqdm
+Requires-Dist: pandas
+Requires-Dist: seaborn
+Requires-Dist: scikit-learn
+Requires-Dist: outdated
+Requires-Dist: basemap
+Requires-Dist: netCDF4
+Requires-Dist: psutil
+Requires-Dist: openpyxl
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
 
 # lytools
 ### Toolbox for data processing
