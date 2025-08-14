@@ -30,7 +30,6 @@ setup(
     'pandas',
     'seaborn',
     'scikit-learn',
-    'outdated',
     'basemap',
     'netCDF4',
     'psutil',

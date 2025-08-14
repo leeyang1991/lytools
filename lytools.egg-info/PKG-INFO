@@ -1,6 +1,6 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: lytools
-Version: 0.0.123
+Version: 0.0.124
 Home-page: https://github.com/leeyang1991/lytools
 Author: Yang Li
 Author-email: leeyang1991@gmail.com
@@ -15,7 +15,6 @@ Requires-Dist: tqdm
 Requires-Dist: pandas
 Requires-Dist: seaborn
 Requires-Dist: scikit-learn
-Requires-Dist: outdated
 Requires-Dist: basemap
 Requires-Dist: netCDF4
 Requires-Dist: psutil
@@ -25,6 +24,7 @@ Dynamic: author-email
 Dynamic: description
 Dynamic: description-content-type
 Dynamic: home-page
+Dynamic: license-file
 Dynamic: requires-dist
 Dynamic: requires-python
 

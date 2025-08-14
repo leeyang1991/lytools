@@ -4799,7 +4799,8 @@ class HANTS:
             A[:, 0, 0] = A[:, 0, 0] - delta
 
             # solve linear matrix equation and define reconstructed timeseries
-            zr = np.linalg.solve(A, za)
+            # zr = np.linalg.solve(A, za)
+            zr = np.linalg.solve(A, za[..., None])[..., 0]
             outputs = np.einsum('ijk,kj->ki', mat.T, zr)
 
             # calculate error and sort err by index
