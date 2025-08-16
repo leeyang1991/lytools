@@ -4584,7 +4584,7 @@ class HANTS:
                 break
         return right_consecutive_non_valid_index
 
-    def hants_interpolate(self, values_list, dates_list, valid_range, nan_value=np.nan):
+    def hants_interpolate(self, values_list, dates_list, valid_range, nan_value=np.nan,valid_ratio=0.8,silent=True):
         '''
         :param values_list: 1D, list of values, multi years
         :param dates_list:  1D, list of dates, corresponding to values_list
@@ -4594,11 +4594,6 @@ class HANTS:
         '''
         values_list = np.array(values_list)
         values_list[np.isnan(values_list)] = valid_range[0]
-        year_list = []
-        for date in dates_list:
-            year = date.year
-            if year not in year_list:
-                year_list.append(year)
         values_dict = dict(zip(dates_list, values_list))
         annual_date_dict = {}
         for date in values_dict:
@@ -4606,6 +4601,23 @@ class HANTS:
             if year not in annual_date_dict:
                 annual_date_dict[year] = []
             annual_date_dict[year].append(date)
+        invalid_year_list = []
+        valid_year_list = []
+        for year in annual_date_dict:
+            date_list_i = annual_date_dict[year]
+            if len(date_list_i) < 365 * valid_ratio:
+                if not silent:
+                    print(f'{year} has less than {valid_ratio*100:.1f}% valid data, skip')
+                invalid_year_list.append(year)
+            else:
+                valid_year_list.append(year)
+        if len(valid_year_list) == 0:
+            if not silent:
+                print(f'All years have less than {valid_ratio*100:1f}% valid data, skip')
+            return {}
+        for year in invalid_year_list:
+            del annual_date_dict[year]
+        # exit()
         _values_list = []
         _dates_list = []
         for year in annual_date_dict:
@@ -4640,7 +4652,7 @@ class HANTS:
             interpolated_values_list.append(ynew)
 
         interpolated_values_list = np.array(interpolated_values_list)
-        results = HANTS().__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0],
+        results = self.__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0],
                                   high=valid_range[1],
                                   fit_error_tolerance=std)
         results_new = []
@@ -4667,17 +4679,7 @@ class HANTS:
                     else:
                         results_i_new.append(results_i[j])
             results_new.append(results_i_new)
-            # plt.plot(results_i_new)
-            # plt.plot(interpolated_values_list[i])
-            # plt.show()
-        # plt.imshow(interpolated_values_list, aspect='auto')
-        # plt.colorbar()
-        #
-        # plt.figure()
-        # plt.imshow(results_new, aspect='auto')
-        # plt.colorbar()
-        # plt.show()
-        results_dict = dict(zip(year_list, results_new))
+        results_dict = Tools().dict_zip(valid_year_list, results_new)
         return results_dict
 
     def __date_list_to_DOY(self, date_list):
