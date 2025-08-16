@@ -4626,7 +4626,7 @@ class HANTS:
         for v in _values_list:
             for vi in v:
                 _values_list_1.append(vi)
-        std_i = np.nanmean(_values_list_1)
+        std_i = np.nanstd(_values_list_1)
         std = 2. * std_i  # larger than twice the standard deviation of the input data is rejected
         interpolated_values_list = []
         for i, values in enumerate(_values_list):

@@ -3,7 +3,6 @@ README.md
 setup.py
 lytools/__init__.py
 lytools/_lytools.py
-lytools/test.py
 lytools.egg-info/PKG-INFO
 lytools.egg-info/SOURCES.txt
 lytools.egg-info/dependency_links.txt
