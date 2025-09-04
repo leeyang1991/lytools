@@ -1,8 +1,8 @@
 # coding=utf-8
 import sys
 
-version = sys.version_info.major
-assert version == 3, 'Python Version Error'
+__python_version = sys.version_info.major
+assert __python_version == 3, 'Python Version Error'
 
 import numpy as np
 import numpy.ma as ma
@@ -52,7 +52,7 @@ import hashlib
 from calendar import monthrange
 
 import zipfile
-
+from functools import wraps
 
 class Tools:
     '''
@@ -1753,7 +1753,7 @@ class Tools:
 
     def plot_df_bin_2d_scatter(self,matrix_dict,vmin,vmax,x_ticks_list,y_ticks_list,cmap='RdBu',
                                is_x_quantile=False,
-                               is_y_quantile=False):
+                               is_y_quantile=False,marker='s',**kwargs):
         for y,x in matrix_dict.keys():
             val = matrix_dict[(y,x)]
             if is_x_quantile:
@@ -1764,7 +1764,7 @@ class Tools:
                 y_pos = y / (len(y_ticks_list) - 1) * 100
             else:
                 y_pos = y_ticks_list[y]
-            plt.scatter(x_pos,y_pos,c=val,vmin=vmin,vmax=vmax,cmap=cmap,marker='s',linewidths=0)
+            plt.scatter(x_pos,y_pos,c=val,vmin=vmin,vmax=vmax,cmap=cmap,linewidths=0,marker=marker,**kwargs)
 
     def ANOVA_test(self, *args, method: str):
         if method == 'f_oneway':
@@ -4876,6 +4876,39 @@ class Dataframe_per_value_transform:
             df_[var_i] = val_list_all
         df = df_.dropna(subset=variable_list, how='all')
         self.df = df
+
+class Decorator:
+
+    @staticmethod
+    def shutup_gdal(func):
+        def wrapper(*args, **kwargs):
+            gdal.PushErrorHandler('CPLQuietErrorHandler')
+            return func(*args, **kwargs)
+        return wrapper
+
+    @staticmethod
+    def plt_position(x_offset=1200, y_offset=-1000):
+        from screeninfo import get_monitors
+        monitors = get_monitors()
+        print('------from plt_position decorator-------')
+        for m in monitors:
+            print(m)
+        print('------from plt_position decorator-------')
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                base_x = x_offset
+                base_y = y_offset
+                fig = func(*args, **kwargs)
+                manager = plt.get_current_fig_manager()
+                if mpl.get_backend() == 'TkAgg':
+                    manager.window.wm_geometry(f"+{base_x}+{base_y}")
+                else:
+                    pass
+                plt.show()
+                return fig
+            return wrapper
+        return decorator
 
 
 def sleep(t=1):
