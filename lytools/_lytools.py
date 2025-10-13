@@ -1677,7 +1677,7 @@ class Tools:
     def df_bin(self, df, col, bins):
         df_copy = df.copy()
         df_copy[f'{col}_bins'] = pd.cut(df[col], bins=bins)
-        df_group = df_copy.groupby([f'{col}_bins'],observed=True)
+        df_group = df_copy.groupby([f'{col}_bins'])
         bins_name = df_group.groups.keys()
         bins_name_list = list(bins_name)
         bins_list_str = [str(i) for i in bins_name_list]
@@ -1904,6 +1904,29 @@ class Tools:
 
     def sort_dict_by_value(self, input_dict,descending=True):
         return dict(sorted(input_dict.items(), key=lambda item: item[1], reverse=descending))
+
+    def date_range(self,start_date_obj,end_date_obj):
+        date_range = []
+        for i in range((end_date_obj - start_date_obj).days):
+            date_range.append(start_date_obj + datetime.timedelta(days=i))
+        return date_range
+
+    def pick_min_max_key_val_from_dict(self, dic,min_or_max):
+        key_list = []
+        val_list = []
+        for key in dic:
+            val = dic[key]
+            key_list.append(key)
+            val_list.append(val)
+        if min_or_max == 'min':
+            max_min_val_index = np.nanargmin(val_list)
+            max_min_key = key_list[max_min_val_index]
+        elif min_or_max == 'max':
+            max_min_val_index = np.nanargmax(val_list)
+            max_min_key = key_list[max_min_val_index]
+        else:
+            raise UserWarning('min_or_max must be "min" or "max"')
+        return max_min_key
 
 class SMOOTH:
     '''
