@@ -14,6 +14,7 @@ from scipy.stats import gaussian_kde as kde
 from scipy import interpolate
 
 import pandas as pd
+import geopandas as gpd
 
 import seaborn as sns
 
@@ -42,6 +43,13 @@ from osgeo import osr
 from osgeo import ogr
 from osgeo import gdal
 
+import rasterio
+from rasterio.windows import Window
+from rasterio.mask import mask
+from rasterio.merge import merge
+from rasterio.io import MemoryFile
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+
 import matplotlib as mpl
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import pyplot as plt
@@ -51,8 +59,11 @@ import matplotlib.patches as mpatches
 import hashlib
 from calendar import monthrange
 
+import psutil
 import zipfile
 from functools import wraps
+from pathlib import Path
+
 
 class Tools:
     '''
@@ -144,7 +155,6 @@ class Tools:
             dic = pickle.load(fr, encoding="latin1")
 
         return dic
-        pass
 
     def load_npy(self, f):
         try:
@@ -179,7 +189,6 @@ class Tools:
         df = pd.read_pickle(f)
         df = pd.DataFrame(df)
         return df
-        pass
 
     def save_df(self, df, outf):
         df.to_pickle(outf)
@@ -366,7 +375,6 @@ class Tools:
 
         return yi
 
-        pass
 
     def interp_nan_climatology(self, vals):
         vals = np.array(vals)
@@ -503,7 +511,6 @@ class Tools:
                 picked_val.append(val)
             picked_val = np.array(picked_val)
             return picked_val
-        pass
 
     def pick_vals_from_1darray(self, arr, index):
         # 1d
@@ -747,7 +754,6 @@ class Tools:
             list_dir.append(f)
         return list_dir
 
-        pass
 
     def drop_repeat_val_from_list(self, in_list):
         in_list = list(in_list)
@@ -1096,7 +1102,6 @@ class Tools:
                 dic_i[col] = val
             dic[key] = dic_i
         return dic
-        pass
 
     def df_to_dic_non_unique_key(self, df, non_unique_colname, unique_colname):
         df_to_dict = {}
@@ -1360,10 +1365,8 @@ class Tools:
                 return True
             else:
                 return False
-            pass
         else:
             return False
-        pass
 
     def reverse_dic(self, dic):
         items = dic.items()
@@ -1495,7 +1498,6 @@ class Tools:
         matrix = np.array(matrix)
         # matrix[matrix == 0] = np.nan
         return matrix
-        pass
 
     def cmap_blend(self, color_list, as_cmap=True, n_colors=6):
         # color_list = ['r', 'g', 'b']
@@ -2165,7 +2167,6 @@ class SMOOTH:
         # for i in
         return sum_
 
-        pass
 
     def hist_plot_smooth(self, arr, interpolate_window=6, **kwargs):
         weights = np.ones_like(arr) / float(len(arr))
@@ -4932,6 +4933,377 @@ class Decorator:
                 return fig
             return wrapper
         return decorator
+
+class Tif_loader:
+
+    def __init__(self,flist,memory_allocate,dtype=None,nodata=None,mute=False):
+        self.flist = flist
+        self.memory_allocate = memory_allocate
+        self.profile = self.get_image_profiles(flist[0])
+        if nodata==None:
+            pass
+        else:
+            self.profile.update(nodata=nodata)
+        # pprint(profile)
+        self.h = self.profile['height']
+        self.w = self.profile['width']
+        if dtype == None:
+            self.dtype = self.profile['dtype']
+        else:
+            self.dtype = dtype
+        self.profile.update(dtype=self.dtype)
+        # pprint(self.profile)
+        self.available_rows = self.get_available_rows(self.memory_allocate, len(flist), self.h, self.w, dtype=self.dtype)
+        self.iter_length = math.ceil(self.h / self.available_rows)
+        self.block_index_list = list(range(math.ceil(self.h / self.available_rows)))
+        if not mute:
+            print('input file size:', f'h:{self.h},w:{self.w}')
+            print('input file count:', len(self.flist))
+            print('output block size:', f'h:{self.available_rows},w:{self.w}')
+            print('output block count:', self.iter_length)
+            print('------------------')
+        pass
+
+    def array_iterator(self):
+        idx = 0
+        for row in range(0, self.h, self.available_rows):
+            patch_concat_list = []
+            for fpath in self.flist:
+                with rasterio.open(fpath) as src:
+                    patch = src.read(
+                        window=((row, row + self.available_rows),(0, self.w))
+                    )
+                    patch_concat_list.append(patch)
+            patch_concat = np.concatenate(patch_concat_list, axis=0)
+            patch_concat_list = []
+
+            window = Window(col_off=0, row_off=self.available_rows * idx, width=self.w, height=self.available_rows)
+            new_transform = rasterio.windows.transform(window, src.transform)
+
+            profile_new = self.profile.copy()
+            profile_new['height'] = self.available_rows
+            profile_new['transform'] = new_transform
+            transform = profile_new['transform']
+            idx += 1
+            yield patch_concat, profile_new
+
+    def array_iterator_index(self,idx):
+
+        row_list = list(range(0, self.h, self.available_rows))
+        row = row_list[idx]
+        patch_concat_list = []
+        for fpath in self.flist:
+        # for fpath in tqdm(self.flist):
+            with rasterio.open(fpath) as src:
+                patch = src.read(
+                    window=((row, row + self.available_rows),(0, self.w))
+                )
+                patch_concat_list.append(patch)
+        patch_concat = np.concatenate(patch_concat_list, axis=0)
+        # print(patch_concat.shape)
+        # exit()
+        patch_concat_list = []
+
+        window = Window(col_off=0, row_off=self.available_rows*idx, width=self.w,height=patch_concat.shape[1])
+        new_transform = rasterio.windows.transform(window, src.transform)
+
+        profile_new = self.profile.copy()
+        profile_new['height'] = patch_concat.shape[1]
+        profile_new['transform'] = new_transform
+        transform = profile_new['transform']
+        return patch_concat,profile_new
+
+
+    def get_available_rows(self,mem_allocate,file_num,image_height,image_width,band_num=1,dtype=np.float32):
+        # mem_allocate: GiB
+        if mem_allocate > 512:
+            Warning(f'Are you sure to allocate {mem_allocate}GiB memory?')
+            print(f'Are you sure to allocate {mem_allocate}GiB memory?')
+            pause()
+        mem_allocate = self.GiByte_to_Byte(mem_allocate)
+
+        memory_info = psutil.virtual_memory()
+        total_mem  = self.sizeof_fmt(memory_info.total)
+        sys_available_mem = memory_info.available
+        if mem_allocate * 2 > memory_info.total:
+            print('Memory not enough!!!','\ntotal mem:',total_mem,'\navailable mem:',self.sizeof_fmt(sys_available_mem))
+            exit()
+        if mem_allocate * 2 > memory_info.available:
+            print('Memory Stress!!!','\ntotal mem:',total_mem,'\navailable mem:',self.sizeof_fmt(sys_available_mem))
+            pause()
+        array_init = np.zeros((1, 1), dtype=dtype)
+        obj_mem = sys.getsizeof(array_init) - 128
+        available_rows = int(mem_allocate / obj_mem / file_num / image_width)
+        # print(mem_allocate / obj_mem / file_num / image_width)
+        if available_rows < 1:
+            raise Exception('memory not enough, please allocate more memory')
+        if available_rows > image_height:
+            print(f'Do not need that much memory, available_rows:{available_rows}, image_height:{image_height}')
+            available_rows = image_height
+        return available_rows
+
+    def sizeof_fmt(self, num, suffix="B"):
+        for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+            if abs(num) < 1024.0:
+                return f"{num:3.1f}{unit}{suffix}"
+            num /= 1024.0
+        return f"{num:.1f}Yi{suffix}"
+
+    def GiByte_to_Byte(self, GiByte):
+        try:
+            GiByte = float(GiByte)
+        except:
+            raise Exception('input error')
+        return int(GiByte * 1024 * 1024 * 1024)
+
+    def get_image_profiles(self,fpath):
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            return profile
+
+    def transform_to_block(self,outdir,njob=8):
+        Tools().mkdir(outdir)
+        flist = self.flist
+        band_name_list = []
+        for fpath in flist:
+            fpath_obj = Path(fpath)
+            band_name = fpath_obj.name
+            band_name_list.append(band_name)
+        if njob == 1:
+            for idx in tqdm(self.block_index_list,desc='transform to block'):
+                patch_concat,profile_new = self.array_iterator_index(idx)
+                outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.tif')
+                RasterIO_Func().write_tif_multi_bands(patch_concat, outf, profile_new, band_name_list)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [outdir,idx,band_name_list]
+                params_list.append(params)
+            MULTIPROCESS(self.kernel_transform_to_block,params_list).run(process=njob)
+        pass
+
+    def kernel_transform_to_block(self,params):
+        outdir,idx,band_name_list = params
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.tif')
+        RasterIO_Func().write_tif_multi_bands(patch_concat, outf, profile_new, band_name_list)
+
+    def transform_to_spatial_dict(self,outdir,njob=8):
+        Tools().mkdir(outdir)
+        flist = self.flist
+        band_name_list = []
+        for fpath in flist:
+            fpath_obj = Path(fpath)
+            band_name = fpath_obj.name
+            band_name_list.append(band_name)
+        if njob == 1:
+            for idx in tqdm(self.block_index_list,desc='transform to spatial dict'):
+                patch_concat,profile_new = self.array_iterator_index(idx)
+                row_size = patch_concat.shape[1]
+                col_size = patch_concat.shape[2]
+                spatial_dict = {}
+                for r in range(row_size):
+                    for c in range(col_size):
+                        vals = patch_concat[:,r,c]
+                        spatial_dict[(r+idx*self.available_rows,c)] = vals
+                outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.npy')
+                Tools().save_npy(spatial_dict,outf)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [outdir,idx]
+                params_list.append(params)
+            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(process=njob)
+
+    def kernel_transform_to_spatial_dict(self,params):
+        outdir, idx = params
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        row_size = patch_concat.shape[1]
+        col_size = patch_concat.shape[2]
+        spatial_dict = {}
+        for r in range(row_size):
+            for c in range(col_size):
+                vals = patch_concat[:, r, c]
+                spatial_dict[(r + idx * self.available_rows, c)] = vals
+        outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.npy')
+        Tools().save_npy(spatial_dict, outf)
+
+    def get_digit_str(self,total_len,idx):
+        digit = math.log(total_len, 10) + 1
+        digit = int(digit)
+        digit_str = f'{idx:0{digit}d}'
+        return digit_str
+
+    def check_tifs(self):
+        failed_flist = []
+        for fpath in self.flist:
+            try:
+                with rasterio.open(fpath) as src:
+                    profile = src.profile
+                    # print(profile)
+            except Exception as e:
+                print(f'check tif error:{fpath}')
+                print(e)
+                print('----')
+                failed_flist.append(fpath)
+        return failed_flist
+        pass
+
+
+class RasterIO_Func:
+
+    def __init__(self):
+
+        pass
+
+    def write_tif(self, array, outf, profile):
+        with rasterio.open(outf, "w", **profile) as dst:
+            dst.write(array, 1)
+
+    def write_tif_multi_bands(self, array_3d, outf, profile, bands_description: list = None):
+        dimension = array_3d.ndim
+        if dimension == 2:
+            array_3d = array_3d[np.newaxis, ... ]
+        profile.update(count=array_3d.shape[0])
+        with rasterio.open(outf, "w", **profile) as dst:
+            for i in range(array_3d.shape[0]):
+                dst.write(array_3d[i], i + 1)
+                if bands_description is not None:
+                    dst.set_band_description(i + 1, bands_description[i])
+
+    def read_tif(self,fpath):
+        with rasterio.open(fpath) as src:
+            data = src.read()
+            profile = src.profile
+            data = data.squeeze()
+            return data,profile
+
+    def crop_tif(self,fpath,outf,in_shp):
+        with rasterio.open(fpath) as src:
+            shapes = gpd.read_file(in_shp).geometry
+            subset, subset_transform = mask(src, shapes, crop=True)
+
+            profile = src.profile
+            profile.update({
+                "height": subset.shape[1],
+                "width": subset.shape[2],
+                "transform": subset_transform
+            })
+
+        with rasterio.open(outf, "w", **profile) as dst:
+            dst.write(subset)
+
+    def mosaic_arrays(self,array_list,profile_list):
+        datasets = []
+        for arr, prof in tqdm(zip(array_list, profile_list),total=len(array_list),desc='mosaic'):
+            if arr.ndim == 2 and prof["count"] == 1:
+                arr = arr[np.newaxis, :, :]
+
+            if arr.ndim == 2:
+                prof.update(count=1)
+            elif arr.ndim == 3:
+                prof.update(count=arr.shape[0])
+            else:
+                raise ValueError("Invalid array dimensions for rasterio write")
+            memfile = MemoryFile()
+            with memfile.open(**prof) as dataset:
+                dataset.write(arr)
+            datasets.append(memfile.open())
+        print('mosaic datasets...')
+        mosaic, mosaic_transform = merge(datasets)
+        out_profile = profile_list[0].copy()
+        out_profile.update({
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": mosaic_transform
+        })
+        print('mosaic datasets done')
+        return mosaic,out_profile
+
+    def mosaic_tifs(self,flist,outf,bigtiff="NO"):
+        array_list = []
+        profile_list = []
+        for fpath in tqdm(flist,desc='read tifs'):
+            array,profile = self.read_tif(fpath)
+            array_list.append(array)
+            profile_list.append(profile)
+        mosaic,out_profile = self.mosaic_arrays(array_list,profile_list)
+        if bigtiff == "YES":
+            out_profile.update(bigtiff=bigtiff)
+        self.write_tif_multi_bands(mosaic, outf, out_profile)
+
+        pass
+
+    def get_tif_bounds(self,fpath):
+        array,profile = self.read_tif(fpath)
+        crs = profile['crs']
+        originX = profile['transform'][2]
+        originY = profile['transform'][5]
+        pixelWidth = profile['transform'][0]
+        pixelHeight = profile['transform'][4]
+        endX = originX + array.shape[1] * pixelWidth
+        endY = originY + array.shape[0] * pixelHeight
+        ll_point = (originX, originY)
+        lr_point = (endX, originY)
+        ur_point = (endX, endY)
+        ul_point = (originX, endY)
+        return ll_point,lr_point,ur_point,ul_point
+
+    def reproject_tif(self,fpath,outf,dst_crs,dst_crs_res=None):
+        with rasterio.open(fpath) as src:
+            transform, width, height = calculate_default_transform(
+                src.crs, dst_crs, src.width, src.height, *src.bounds,resolution=dst_crs_res
+            )
+            profile = src.profile
+            profile.update({
+                "crs": dst_crs,
+                "transform": transform,
+                "width": width,
+                "height": height
+            })
+            with rasterio.open(outf, "w", **profile) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=dst_crs,
+                        resampling=Resampling.nearest
+                    )
+
+    def build_pyramid(self,
+            tif_path,
+            levels=(2, 4, 8, 16),
+            resampling="average",
+            compress="lzw",
+            bigtiff="No",
+    ):
+
+        if not os.path.exists(tif_path):
+            raise FileNotFoundError(f"File not found: {tif_path}")
+        if bigtiff == 'YES':
+            with rasterio.open(tif_path) as src:
+                band_descriptions = src.descriptions
+                profile = src.profile
+                is_bigtiff = profile.get("bigtiff") == "YES"
+                if not is_bigtiff:
+                    data = src.read()
+                    profile.update(
+                        tiled=True,
+                        compress=compress,
+                        bigtiff=bigtiff,
+                    )
+                    with rasterio.open(tif_path, "w", **profile) as dst:
+                        dst.write(data)
+                        for i in range(data.shape[0]):
+                            dst.set_band_description(i + 1, band_descriptions[i])
+
+        with rasterio.open(tif_path, 'r+') as ds:
+            resampling_method = getattr(Resampling, resampling)
+            ds.build_overviews(levels, resampling_method)
+            ds.update_tags(ns='rio_overview', resampling=resampling)
 
 
 def sleep(t=1):

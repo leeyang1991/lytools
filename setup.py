@@ -34,5 +34,7 @@ setup(
     'netCDF4',
     'psutil',
     'openpyxl',
+    'rasterio',
+    'geopandas',
     ],
 )

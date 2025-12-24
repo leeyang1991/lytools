@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: lytools
-Version: 0.0.130
+Version: 0.0.131
 Home-page: https://github.com/leeyang1991/lytools
 Author: Yang Li
 Author-email: leeyang1991@gmail.com
@@ -19,6 +19,8 @@ Requires-Dist: basemap
 Requires-Dist: netCDF4
 Requires-Dist: psutil
 Requires-Dist: openpyxl
+Requires-Dist: rasterio
+Requires-Dist: geopandas
 Dynamic: author
 Dynamic: author-email
 Dynamic: description
