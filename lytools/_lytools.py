@@ -43,12 +43,18 @@ from osgeo import osr
 from osgeo import ogr
 from osgeo import gdal
 
+from pyproj import Transformer
+from shapely.geometry import box
+from shapely.geometry import mapping
+
 import rasterio
 from rasterio.windows import Window
 from rasterio.mask import mask
 from rasterio.merge import merge
 from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+from rasterio.transform import Affine
+from rasterio.crs import CRS
 
 import matplotlib as mpl
 from matplotlib.colors import LinearSegmentedColormap
@@ -64,6 +70,7 @@ import zipfile
 from functools import wraps
 from pathlib import Path
 
+import warnings
 
 class Tools:
     '''
@@ -121,7 +128,6 @@ class Tools:
             dic_i = self.load_npy(os.path.join(fdir, f))
             dic.update(dic_i)
         return dic
-        pass
 
     def load_dict_txt(self, f):
         nan = np.nan
@@ -566,7 +572,7 @@ class Tools:
         max_n_val = self.pick_vals_from_1darray(vals, max_n_index)
         return max_n_index, max_n_val
 
-    def point_to_shp(self, inputlist, outSHPfn):
+    def point_to_shp(self, inputlist, outSHPfn,wkt=None):
         '''
 
         :param inputlist:
@@ -629,8 +635,9 @@ class Tools:
                 # outFeature.SetField('val', inputlist[i][2])
                 # 加坐标系
                 spatialRef = osr.SpatialReference()
-                wkt_84=DIC_and_TIF().wkt_84()
-                spatialRef.ImportFromWkt(wkt_84)
+                if wkt is None:
+                    wkt=DIC_and_TIF().wkt_84()
+                spatialRef.ImportFromWkt(wkt)
                 spatialRef.MorphToESRI()
                 file = open(outSHPfn[:-4] + '.prj', 'w')
                 file.write(spatialRef.ExportToWkt())
@@ -1353,20 +1360,27 @@ class Tools:
         z = x.intersection(y)
         return z
 
-    def is_all_nan(self, vals):
+    def is_all_nan(self, vals, nodata=np.nan):
         if type(vals) == float:
-            return True
+            return vals == nodata
         vals = np.array(vals)
-        isnan_list = np.isnan(vals)
-        isnan_list_set = set(isnan_list)
-        isnan_list_set = list(isnan_list_set)
-        if len(isnan_list_set) == 1:
-            if isnan_list_set[0] == True:
-                return True
+        if np.isnan(nodata):
+            isnan_list = np.isnan(vals)
+            isnan_list_set = set(isnan_list)
+            isnan_list_set = list(isnan_list_set)
+            if len(isnan_list_set) == 1:
+                if isnan_list_set[0] == True:
+                    return True
+                else:
+                    return False
             else:
                 return False
         else:
-            return False
+            isnan_list = vals[vals==nodata]
+            if len(isnan_list) == len(vals):
+                return True
+            else:
+                return False
 
     def reverse_dic(self, dic):
         items = dic.items()
@@ -1692,7 +1706,7 @@ class Tools:
         #     err_list.append(err)
         return df_group, bins_list_str
 
-    def df_bin_2d(self,df,val_col_name,col_name_x,col_name_y,bin_x,bin_y,round_x=2,round_y=2):
+    def df_bin_2d(self,df,val_col_name,col_name_x,col_name_y,bin_x,bin_y,method=np.nanmean,round_x=2,round_y=2):
         df_group_y, _ = self.df_bin(df, col_name_y, bin_y)
         matrix_dict = {}
         y_ticks_list = []
@@ -1707,7 +1721,7 @@ class Tools:
             flag2 = 0
             for name_x, df_group_x_i in df_group_x:
                 vals = df_group_x_i[val_col_name].tolist()
-                rt_mean = np.nanmean(vals)
+                rt_mean = method(vals)
                 matrix_i.append(rt_mean)
                 x_ticks = (name_x[0].left + name_x[0].right) / 2
                 x_ticks = np.round(x_ticks, round_x)
@@ -1749,7 +1763,7 @@ class Tools:
         matrix = matrix[::-1]
         if is_only_return_matrix:
             return matrix
-        plt.imshow(matrix,cmap='RdBu',vmin=vmin,vmax=vmax)
+        plt.imshow(matrix,cmap=cmap,vmin=vmin,vmax=vmax)
         plt.xticks(range(len(c_list)), x_ticks_list)
         plt.yticks(range(len(r_list)), y_ticks_list[::-1])
 
@@ -1930,6 +1944,189 @@ class Tools:
             raise UserWarning('min_or_max must be "min" or "max"')
         return max_min_key
 
+    def listdir_full(self, fdir):
+        fdir = Path(fdir)
+        f_list = []
+        for f in self.listdir(fdir):
+            fpath = fdir / f
+            f_list.append(fpath)
+        return f_list
+
+    def doy_to_month(self,doy):
+        '''
+        :param doy: day of year
+        :return: month
+        '''
+        base = datetime.datetime(2000,1,1)
+        time_delta = datetime.timedelta(int(doy))
+        date = base + time_delta
+        month = date.month
+        day = date.day
+        if day > 15:
+            month = month + 1
+        if month >= 12:
+            month = 12
+        return month
+
+    def get_GS_vals(self, vals:np.ndarray, onset_doy:float, offset_doy:float):
+        # todo: check carefully
+        onset_mon = self.doy_to_month(onset_doy)
+        offset_mon = self.doy_to_month(offset_doy)
+        assert len(vals) % 12 == 0
+        vals_reshape = vals.reshape(-1, 12)
+
+        if offset_mon > onset_mon:
+            vals_reshape_gs = vals_reshape[:, onset_mon - 1:offset_mon - 1]
+            return vals_reshape_gs
+
+        elif offset_mon < onset_mon:
+            gs_len = 12 - onset_mon + 1 + offset_mon
+
+            first_year = vals_reshape[0][onset_mon - 1:].tolist()
+            last_year = vals_reshape[-1][:onset_mon - 1].tolist()
+            middle_year = vals_reshape[1:-1].flatten().tolist()
+
+            vals_cut = first_year + middle_year + last_year
+            vals_cut = np.array(vals_cut)
+            vals_cut_reshape = vals_cut.reshape(-1, 12)
+            vals_cut_reshape_gs = vals_cut_reshape[:, :gs_len]
+            # vals_cut_reshape_gs_annual_mean = method(vals_cut_reshape_gs, axis=1)
+            return vals_cut_reshape_gs
+
+        elif offset_mon == onset_mon:
+            vals_reshape_gs = vals_reshape[:,onset_mon-1]
+            vals_reshape_gs = vals_reshape_gs.flatten().reshape(-1,1)
+            return vals_reshape_gs
+        else:
+            print(offset_mon, onset_mon)
+            print('errrrr')
+            raise ValueError
+
+        pass
+
+    def reproject_coordinates(self,x,y,src_crs,dst_crs):
+        # Create a transformer object
+        transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+
+        # Reproject the coordinates
+        new_x, new_y = transformer.transform(x, y)
+
+        return new_x, new_y
+
+    def shasum_string(self, input_string):
+        # Create a SHA-256 hash object
+        sha256_hash = hashlib.sha256()
+
+        # Update the hash object with the bytes of the input string
+        sha256_hash.update(input_string.encode('utf-8'))
+
+        # Get the hexadecimal representation of the hash
+        hex_dig = sha256_hash.hexdigest()
+
+        return hex_dig
+
+
+    def df_to_gpkg(self, df, outGPKGfn, lon_col='lon', lat_col='lat', layer_name='points', wkt=None):
+        '''
+        Save a pandas DataFrame to a GeoPackage point layer.
+
+        DataFrame must include longitude/latitude columns and any number of attribute columns.
+        '''
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError('df must be a pandas.DataFrame')
+        if len(df) == 0:
+            raise ValueError('df is empty')
+        if lon_col not in df.columns or lat_col not in df.columns:
+            raise KeyError(f'Missing required coordinate columns: {lon_col}, {lat_col}')
+        if layer_name is None or str(layer_name).strip() == '':
+            raise ValueError('layer_name cannot be empty')
+
+        if outGPKGfn.endswith('.gpkg'):
+            out_path = outGPKGfn
+        else:
+            out_path = outGPKGfn + '.gpkg'
+
+        gpkg_driver = ogr.GetDriverByName('GPKG')
+        if gpkg_driver is None:
+            raise RuntimeError('GPKG driver is not available in your GDAL/OGR build')
+        if os.path.exists(out_path):
+            gpkg_driver.DeleteDataSource(out_path)
+
+        out_data_source = gpkg_driver.CreateDataSource(out_path)
+        if out_data_source is None:
+            raise RuntimeError(f'Failed to create GeoPackage: {out_path}')
+
+        spatial_ref = osr.SpatialReference()
+        if wkt is None:
+            wkt = DIC_and_TIF().wkt_84()
+        spatial_ref.ImportFromWkt(wkt)
+
+        out_layer = out_data_source.CreateLayer(str(layer_name), srs=spatial_ref, geom_type=ogr.wkbPoint)
+        if out_layer is None:
+            out_data_source = None
+            raise RuntimeError(f'Failed to create layer: {layer_name}')
+
+        attr_cols = [col for col in df.columns if col not in [lon_col, lat_col]]
+        field_type_dict = {
+            'float': ogr.OFTReal,
+            'int': ogr.OFTInteger64,
+            'str': ogr.OFTString,
+            'bool': ogr.OFTInteger
+        }
+
+        col_type_dict = {}
+        for col in attr_cols:
+            series = df[col].dropna()
+            if len(series) == 0:
+                value_type_name = 'str'
+            else:
+                value = series.iloc[0]
+                if isinstance(value, (bool, np.bool_)):
+                    value_type_name = 'bool'
+                elif isinstance(value, (int, np.integer)):
+                    value_type_name = 'int'
+                elif isinstance(value, (float, np.floating)):
+                    value_type_name = 'float'
+                else:
+                    value_type_name = 'str'
+
+            col_type_dict[col] = value_type_name
+            out_layer.CreateField(ogr.FieldDefn(str(col), field_type_dict[value_type_name]))
+
+        feature_defn = out_layer.GetLayerDefn()
+        for _, row in df.iterrows():
+            lon = row[lon_col]
+            lat = row[lat_col]
+            if pd.isna(lon) or pd.isna(lat):
+                continue
+
+            point = ogr.Geometry(ogr.wkbPoint)
+            point.AddPoint(float(lon), float(lat))
+
+            out_feature = ogr.Feature(feature_defn)
+            out_feature.SetGeometry(point)
+
+            for col in attr_cols:
+                value = row[col]
+                if pd.isna(value):
+                    continue
+                value_type_name = col_type_dict[col]
+                if value_type_name == 'int':
+                    out_feature.SetField(str(col), int(value))
+                elif value_type_name == 'float':
+                    out_feature.SetField(str(col), float(value))
+                elif value_type_name == 'bool':
+                    out_feature.SetField(str(col), int(bool(value)))
+                else:
+                    out_feature.SetField(str(col), str(value))
+
+            out_layer.CreateFeature(out_feature)
+            out_feature = None
+
+        out_data_source = None
+        return out_path
+
 class SMOOTH:
     '''
     一些平滑算法
@@ -2073,7 +2270,6 @@ class SMOOTH:
     def smooth_interpolate(self, inx, iny, zoom):
         '''
         1d平滑差值
-        :param inlist:
         :return:
         '''
 
@@ -4934,6 +5130,14 @@ class Decorator:
             return wrapper
         return decorator
 
+    @staticmethod
+    def shutup_np(func):
+        def wrapper(*args, **kwargs):
+            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            return func(*args, **kwargs)
+
+        return wrapper
+    pass
 class Tif_loader:
 
     def __init__(self,flist,memory_allocate,dtype=None,nodata=None,mute=False):
@@ -5149,6 +5353,39 @@ class Tif_loader:
         return failed_flist
         pass
 
+    def reduce(self,method,njob=8):
+        flist = self.flist
+        nodata=self.profile['nodata']
+
+        band_name_list = []
+        for fpath in flist:
+            fpath_obj = Path(fpath)
+            band_name = fpath_obj.name
+            band_name_list.append(band_name)
+        if njob == 1:
+            results_2darray_list = []
+            for idx in tqdm(self.block_index_list, desc=f'{method.__name__}'):
+                params = [idx,method,nodata]
+                results_2darray_i = self.kernel_reduce(params)
+                results_2darray_list.append(results_2darray_i)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [idx,method,nodata]
+                params_list.append(params)
+            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob, desc=f'{method.__name__}')
+
+        results_2darray = np.concatenate(results_2darray_list,axis=0)
+        profile = copy.copy(self.profile)
+        profile['count'] = 1
+        return results_2darray,profile
+
+
+    def kernel_reduce(self,params):
+        idx,method,nodata=params
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        patch_concat_2d = method(patch_concat, axis=0, where=patch_concat != nodata)
+        return patch_concat_2d
 
 class RasterIO_Func:
 
@@ -5157,8 +5394,76 @@ class RasterIO_Func:
         pass
 
     def write_tif(self, array, outf, profile):
+        profile['count'] = 1
         with rasterio.open(outf, "w", **profile) as dst:
             dst.write(array, 1)
+
+    def read_tif_band_names(self,fpath):
+        with rasterio.open(fpath) as dataset:
+            bands_name = dataset.descriptions
+            return bands_name
+
+    def profile_template(self):
+        profile = {'blockxsize': 432,
+                 'blockysize': 224,
+                 'compress': 'packbits',
+                 'count': 1,
+                 'crs': CRS().from_wkt('GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],'
+                                     'AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],'
+                                     'UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],'
+                                     'AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]'),
+                 'driver': 'GTiff',
+                 'dtype': 'uint16',
+                 'height': 2160,
+                 'interleave': 'pixel',
+                 'nodata': None,
+                 'tiled': True,
+                 'transform': Affine(0.08333333333333333, 0.0, -180.0,
+                       0.0, -0.08333333333333333, 90.0),
+                 'width': 4320}
+
+        return profile
+
+    def cal_row_col_from_coordinates(self,x_list,y_list,fpath):
+        row_list = []
+        col_list = []
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            for i in range(len(x_list)):
+                x = x_list[i]
+                y = y_list[i]
+                originX = profile['transform'][2]
+                originY = profile['transform'][5]
+                pixelWidth = profile['transform'][0]
+                pixelHeight = profile['transform'][4]
+                col = int((x - originX) / pixelWidth)
+                row = int((y - originY) / pixelHeight)
+                row_list.append(row)
+                col_list.append(col)
+        return row_list, col_list
+
+    def extract_value_from_tif_by_row_col(self,row_list,col_list,fpath):
+        value_list = []
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            data = src.read()
+            for i in range(len(row_list)):
+                col = row_list[i]
+                row = col_list[i]
+                value = data[:, row, col]
+                value_list.append(value)
+        value_list = np.array(value_list)
+        return value_list
+
+    def extract_value_from_tif_by_x_y(self,x_list,y_list,fpath):
+        value_list = []
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            xy_point_list = list(zip(x_list,y_list))
+            for value in src.sample(xy_point_list):
+                value_list.append(value)
+            value_list = np.array(value_list)
+            return value_list
 
     def write_tif_multi_bands(self, array_3d, outf, profile, bands_description: list = None):
         dimension = array_3d.ndim
@@ -5234,20 +5539,28 @@ class RasterIO_Func:
 
         pass
 
+
     def get_tif_bounds(self,fpath):
-        array,profile = self.read_tif(fpath)
-        crs = profile['crs']
-        originX = profile['transform'][2]
-        originY = profile['transform'][5]
-        pixelWidth = profile['transform'][0]
-        pixelHeight = profile['transform'][4]
-        endX = originX + array.shape[1] * pixelWidth
-        endY = originY + array.shape[0] * pixelHeight
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            crs = profile['crs']
+            crs_str = crs.to_string()
+            ImageHeight = profile['height']
+            ImageWidth = profile['width']
+            PixelWidth = profile['transform'][0]
+            PixelHeight = profile['transform'][4]
+
+            originX = profile['transform'][2]
+            originY = profile['transform'][5]
+            endX = originX + ImageWidth * PixelWidth
+            endY = originY + ImageHeight * PixelHeight
+
         ll_point = (originX, originY)
         lr_point = (endX, originY)
         ur_point = (endX, endY)
         ul_point = (originX, endY)
         return ll_point,lr_point,ur_point,ul_point
+
 
     def reproject_tif(self,fpath,outf,dst_crs,dst_crs_res=None):
         with rasterio.open(fpath) as src:
@@ -5305,6 +5618,583 @@ class RasterIO_Func:
             ds.build_overviews(levels, resampling_method)
             ds.update_tags(ns='rio_overview', resampling=resampling)
 
+    def clip_tif_by_bounds(self,in_tif,out_tif,bounds):
+
+
+        with rasterio.open(in_tif) as src:
+            minx, miny, maxx, maxy = bounds
+            input_bounds = box(minx, miny, maxx, maxy)
+            geo_df = gpd.GeoDataFrame({'geometry': input_bounds}, index=[0],
+                                      crs=src.crs)
+
+            # Get the geometry coordinates in the format rasterio mask function expects
+            # which is a list of GeoJSON-like objects
+            geoms = [mapping(g) for g in geo_df.geometry.values]
+
+            # Clip the raster
+            out_image, out_transform = mask(dataset=src, shapes=geoms, crop=True)
+
+            # Update metadata for the output file
+            # src.pro
+            profile = src.profile
+            profile.update({
+                "driver": "GTiff",
+                "height": out_image.shape[1],
+                "width": out_image.shape[2],
+                "transform": out_transform,
+                "crs": src.crs
+            })
+
+            with rasterio.open(out_tif, "w", **profile) as dest:
+                dest.write(out_image)
+
+        pass
+
+    def get_tif_bounds_(self,fpath):
+        # rename to get_tif_bounds
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+        # pprint(profile)
+        # exit()
+        crs = profile['crs']
+        originX = profile['transform'][2]
+        originY = profile['transform'][5]
+        pixelWidth = profile['transform'][0]
+        pixelHeight = profile['transform'][4]
+        # endX = originX + array.shape[1] * pixelWidth
+        endX = originX + profile['width'] * pixelWidth
+        endY = originY + profile['height'] * pixelHeight
+
+        minx, miny, maxx, maxy = originX, endY, endX, originY
+        return minx, miny, maxx, maxy
+
+    def clip_tif_by_tif(self,in_tif,out_tif,clip_tif):
+        bounds = self.get_tif_bounds_(clip_tif)
+        self.clip_tif_by_bounds(in_tif,out_tif,bounds)
+
+class Block_Handler:
+    '''
+    Handle 3d-raster blocks
+    '''
+
+    def __init__(self,block_flist):
+        self.block_flist = block_flist
+        originX_most, originY_most, endX_most, endY_most, pixelsize_f = self.get_bounds()
+
+        self.originX = originX_most
+        self.originY = originY_most
+        self.endX = endX_most
+        self.endY = endY_most
+        self.pixelsize = pixelsize_f
+
+    def run(self):
+        # self.transform_block_to_spatial_dict(join(temp_root,'spatial_dict'))
+        # self.transform_spatial_dict_to_block(join(temp_root,'spatial_dict'),join(temp_root,'block'))
+        pass
+
+    def get_pix_key(self,pix_key_outdir=None):
+        global_originX = self.originX
+        global_originY = self.originY
+        global_endX = self.endX
+        global_endY = self.endY
+        # for fpath in tqdm(self.block_flist):
+        pix_key_dict = {}
+        for fpath in self.block_flist:
+            fname = Path(fpath).name
+            with rasterio.open(fpath) as src:
+                profile = src.profile
+                ImageHeight = profile['height']
+                ImageWidth = profile['width']
+                PixelWidth = profile['transform'][0]
+                PixelHeight = profile['transform'][4]
+
+                originX = profile['transform'][2]
+                originY = profile['transform'][5]
+                endX = originX + ImageWidth * PixelWidth
+                endY = originY + ImageHeight * PixelHeight
+
+                if originX < global_originX:
+                    raise ValueError('Sub-region OriginX must be greater than global originX')
+                if originY > global_originY:
+                    raise ValueError('Sub-region OriginY must be less than global originY')
+                if endX > global_endX:
+                    raise ValueError('Sub-region endX must be less than global endX')
+                if endY < global_endY:
+                    raise ValueError('Sub-region endY must be greater than global endY')
+
+                row = ImageHeight
+                col = ImageWidth
+                offset_x = int((originX - global_originX) / PixelWidth)
+                offset_y = int((global_originY - originY) / abs(PixelHeight))
+                pix_key_array = np.zeros((2,row,col),dtype=np.int32)
+                for r in range(row):
+                    for c in range(col):
+                        global_r = offset_y + r
+                        global_c = offset_x + c
+                        pix_key_array[0][r][c] = global_r
+                        pix_key_array[1][r][c] = global_c
+                pix_key_dict[fpath] = pix_key_array
+            if pix_key_outdir:
+                assert isdir(pix_key_outdir)
+                pix_key_outdir = Path(pix_key_outdir)
+                outf = pix_key_outdir / f'pix_key_{fname}'
+                bands_description = ['row','col']
+                profile['count'] = 2
+                RasterIO_Func().write_tif_multi_bands(pix_key_array, outf, profile, bands_description)
+        return pix_key_dict
+
+    def get_bounds(self):
+        originX_list = []
+        originY_list = []
+        endX_list = []
+        endY_list = []
+        crs_list = []
+        for fpath in self.block_flist:
+            with rasterio.open(fpath) as src:
+                profile = src.profile
+                crs = profile['crs']
+                crs_str = crs.to_string()
+                if not crs_str in crs_list:
+                    crs_list.append(crs_str)
+                ImageHeight = profile['height']
+                ImageWidth = profile['width']
+                PixelWidth = profile['transform'][0]
+                PixelHeight = profile['transform'][4]
+
+                originX = profile['transform'][2]
+                originY = profile['transform'][5]
+                endX = originX + ImageWidth * PixelWidth
+                endY = originY + ImageHeight * PixelHeight
+
+                originX_list.append(originX)
+                originY_list.append(originY)
+                endX_list.append(endX)
+                endY_list.append(endY)
+        if len(crs_list) != 1:
+            print('Different CRS found:')
+            print(crs_list)
+            raise ValueError('Different CRS found!')
+        originX_most = min(originX_list)
+        originY_most = max(originY_list)
+        endX_most = max(endX_list)
+        endY_most = min(endY_list)
+        return originX_most,originY_most,endX_most,endY_most,PixelWidth
+
+    def get_global_profile(self):
+        # originX_most, originY_most, endX_most, endY_most, PixelWidth = self.originX,self.originY,self.endX,self.endY,self.pixelsize
+        profile_list = []
+        for f in self.block_flist:
+            with rasterio.open(f) as src:
+                profile = src.profile
+                profile_list.append(profile)
+        global_profile = DIC_and_DF().merge_profiles(profile_list)
+
+        return global_profile
+
+    def gen_global_null_array(self,layer_num=1,dtype=np.float32,nodata=None):
+        profile = self.get_global_profile()
+        nodata = profile['nodata'] if nodata is None else nodata
+        null_array = np.ones((profile['height'],profile['width']),dtype=dtype) * nodata
+
+        if layer_num > 1:
+            array_list = []
+            for num in range(layer_num):
+                array_list.append(null_array)
+            null_array_3d = np.stack(array_list,axis=0)
+            return null_array_3d
+        else:
+            return null_array
+
+        pass
+
+    def transform_block_to_spatial_dict(self,outdir):
+        # todo: add parallel processing
+        outdir = Path(outdir)
+        Tools().mkdir(outdir,force=True)
+        pix_key_dict = self.get_pix_key()
+        metadata_dict = {}
+        for fpath in tqdm(pix_key_dict,desc='transform_block_to_spatial_dict'):
+            fname = Path(fpath).name
+            outf = outdir / f'{fname}.npy'
+            data3d,profile = RasterIO_Func().read_tif(fpath)
+            nodata = profile['nodata']
+            # print(nodata)
+            # exit()
+            bands_description = RasterIO_Func().read_tif_band_names(fpath)
+            key_array = pix_key_dict[fpath]
+            row,col = data3d.shape[1],data3d.shape[2]
+            spatial_dict = {}
+            for r in range(row):
+                for c in range(col):
+                    global_r = key_array[0][r][c]
+                    global_c = key_array[1][r][c]
+                    vals = data3d[:,r,c]
+                    # print(vals,nodata)
+                    if Tools().is_all_nan(vals,nodata):
+                        continue
+
+                    if Tools().is_all_nan(vals):
+                        continue
+                    spatial_dict[(int(global_r),int(global_c))] = vals
+            Tools().save_npy(spatial_dict,outf)
+            profile['bands_description'] = bands_description
+            metadata_dict[fname+'.npy'] = profile
+        outf_metadata = outdir / 'metadata.dict'
+        outf_metadata = str(outf_metadata)
+        Tools().save_dict_to_binary(metadata_dict,outf_metadata)
+        pass
+
+    def transform_spatial_dict_to_block(self,fdir_dict,outdir_block):
+        fdir_dict = Path(fdir_dict)
+        outdir_block = Path(outdir_block)
+        Tools().mkdir(outdir_block,force=True)
+        profile_dict = Tools().load_dict_from_binary(fdir_dict / 'metadata.dict.pkl')
+        height_offset = 0
+        for f in tqdm(profile_dict,desc='transform_spatial_dict_to_block'):
+            # exit()
+            profile = profile_dict[f]
+            height = profile['height']
+            width = profile['width']
+            nodata = profile['nodata']
+            dtype = profile['dtype']
+            bands_description = profile['bands_description']
+            # profile['count'] = len(bands_list)
+            spatial_dict = Tools().load_npy(fdir_dict / f)
+
+            null_array3d = np.ones((len(bands_description),height,width),dtype=dtype)*nodata
+            for key in spatial_dict:
+                vals = spatial_dict[key]
+                r,c = key
+                _r = r - height_offset
+                null_array3d[:,_r,c] = vals
+            height_offset += height
+            outf = outdir_block / f.replace('.npy','')
+            RasterIO_Func().write_tif_multi_bands(null_array3d, outf, profile,bands_description)
+
+        pass
+
+    def transform_block_to_tif_list(self,outdir,njob=8):
+
+        # get global profile
+        profile_list = []
+        band_list = []
+        for path in self.block_flist:
+            with rasterio.open(path) as src:
+                profile = src.profile
+                profile_list.append(profile)
+                band_list = src.descriptions
+        global_profile = DIC_and_DF().merge_profiles(profile_list)
+        count = global_profile['count']
+        global_profile['count'] = 1
+        params_list = []
+        for indx in range(1,count+1):
+            params = indx, band_list, global_profile, outdir
+            params_list.append(params)
+            # self.kernel_transform_block_to_tif_list(params)
+        MULTIPROCESS(self.kernel_transform_block_to_tif_list,params_list).run(process=njob)
+        pass
+
+    def kernel_transform_block_to_tif_list(self,params):
+        indx, band_list, global_profile, outdir = params
+
+        patch_list = []
+        for path in sorted(self.block_flist):
+            with rasterio.open(path) as src:
+                patch = src.read(
+                    indexes=indx
+                )
+                patch_list.append(patch)
+        patch_concat = np.concatenate(patch_list, axis=0)
+        band_name = band_list[indx - 1]
+        if band_name.endswith('.tif'):
+            outf = Path(outdir) / f'{band_name}'
+        else:
+            outf = Path(outdir) / f'{band_name}.tif'
+        RasterIO_Func().write_tif(patch_concat, outf, global_profile)
+
+
+    def reduce(self,outf=None,method=np.mean,njob=8):
+        global_profile = self.get_global_profile()
+        global_profile['count'] = 1
+        global_profile['dtype'] = np.float32
+        # pprint(global_profile)
+        # exit()
+        params_list = []
+        for f in self.block_flist:
+            params = f,method
+            params_list.append(params)
+        if len(params_list) < njob:
+            njob = len(params_list)
+        result_arrays = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob)
+        result_array = np.concatenate(result_arrays,axis=0)
+        if outf != None:
+            RasterIO_Func().write_tif(result_array,outf,global_profile)
+        return result_array,global_profile
+
+    def kernel_reduce(self,params):
+        f,method = params
+        data, profile = RasterIO_Func().read_tif(f)
+        nodata = profile['nodata']
+        data_reduce = method(data, axis=0, where=data != nodata)
+        return data_reduce
+
+
+class DIC_and_DF:
+
+    def __init__(self):
+        pass
+
+    def load_spatial_dict_dir(self,fdir, progress_bar=False, desc='loading dict', **kwargs):
+        fdir = Path(fdir)
+        metadata_dict = Tools().load_dict_from_binary(fdir / 'metadata.dict.pkl')
+        fname_list = list(metadata_dict.keys())
+        fname_list.sort()
+        if not progress_bar:
+            for fname in fname_list:
+                fpath = fdir / fname
+                spatial_dict = Tools().load_npy(fpath)
+                profile = metadata_dict[fname]
+                yield spatial_dict, profile, fname
+        else:
+            for fname in tqdm(fname_list, desc=desc, **kwargs):
+                fpath = fdir / fname
+                spatial_dict = Tools().load_npy(fpath)
+                profile = metadata_dict[fname]
+                yield spatial_dict, profile, fname
+
+    def load_spatial_dataframe_dir(self,fdir, progress_bar=False, desc='loading df', **kwargs):
+        fdir = Path(fdir)
+        metadata_dict = Tools().load_dict_from_binary(fdir / 'metadata.dict.pkl')
+        fname_list = list(metadata_dict.keys())
+        fname_list.sort()
+        if not progress_bar:
+            for fname in fname_list:
+                fpath = fdir / fname
+                df = Tools().load_df(fpath)
+                profile = metadata_dict[fname]
+                yield df, profile, fname
+        else:
+            for fname in tqdm(fname_list, desc=desc, **kwargs):
+                fpath = fdir / fname
+                df = Tools().load_df(fpath)
+                profile = metadata_dict[fname]
+                yield df, profile, fname
+
+    def load_spatial_dataframe_dir_profile(self,fdir):
+        fdir = Path(fdir)
+        profile_dict = Tools().load_dict_from_binary(fdir / 'metadata.dict.pkl')
+
+        profile_list = []
+        for profile in profile_dict:
+            profile_list.append(profile_dict[profile])
+
+        profile_merge = self.merge_profiles(profile_list)
+
+        return profile_merge
+
+    def merge_profiles(self,profile_list, count=None, dtype=None, nodata=None):
+
+        originX_list = []
+        originY_list = []
+        endX_list = []
+        endY_list = []
+        PixelWidth = 0
+        PixelHeight = 0
+        profile = {}
+        for profile in profile_list:
+            # pprint(profile)
+            # exit()
+            ImageHeight = profile['height']
+            ImageWidth = profile['width']
+            PixelWidth = profile['transform'][0]
+            PixelHeight = profile['transform'][4]
+
+            originX = profile['transform'][2]
+            originY = profile['transform'][5]
+            endX = originX + ImageWidth * PixelWidth
+            endY = originY + ImageHeight * PixelHeight
+
+            originX_list.append(originX)
+            originY_list.append(originY)
+            endX_list.append(endX)
+            endY_list.append(endY)
+        if 'bands_description' in profile:
+            del profile['bands_description']
+        # pprint(profile)
+        originX_most = min(originX_list)
+        originY_most = max(originY_list)
+        endX_most = max(endX_list)
+        endY_most = min(endY_list)
+        ImageHeight_all = int((endY_most - originY_most) / PixelHeight)
+        PixelWidth_all = int((endX_most - originX_most) / PixelWidth)
+
+        profile['height'] = ImageHeight_all
+        profile['width'] = PixelWidth_all
+        if nodata != None:
+            profile['nodata'] = nodata
+        if count != None:
+            profile['count'] = count
+        if dtype != None:
+            profile['dtype'] = dtype
+        transform = Affine(PixelWidth, 0, originX_most, 0, PixelHeight, originY_most)
+
+        profile['transform'] = transform
+        # print('---')
+        return profile
+
+    def spatial_dataframe_dir_to_tif(self,df_loader, profile_dict, col_name, outf, method, njob: int = 7):
+        # df_loader = load_spatial_dataframe(dataframe_dir,progress_bar=progress_bar)
+        # profile_dict = load_spatial_dataframe_profile(dataframe_dir)
+
+        profile_list = []
+        for profile in profile_dict:
+            profile_list.append(profile_dict[profile])
+
+        profile_merge = DIC_and_DF().merge_profiles(profile_list)
+
+        if njob == 1:
+            result_array_list = []
+            for df, profile, fname in df_loader:
+                params = (df, col_name, method, profile, profile_merge)
+                result_array = self.kernel_spatial_dataframe_dir_to_tif(params)
+                result_array_list.append(result_array)
+            result_array = np.concatenate(result_array_list, axis=0)
+            RasterIO_Func().write_tif(result_array, outf, profile_merge)
+
+        else:
+            params_list = []
+            for df, profile, fname in df_loader:
+                params = (df, col_name, method, profile, profile_merge)
+                params_list.append(params)
+            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(process=njob)
+            result_array = np.concatenate(result_array_list, axis=0)
+            RasterIO_Func().write_tif(result_array, outf, profile_merge)
+
+    def spatial_dataframe_dir_to_arr(self,dataframe_dir, col_name, method, progress_bar=True, njob: int = 7):
+        df_loader = self.load_spatial_dataframe_dir(dataframe_dir, progress_bar=progress_bar)
+        profile_merge = self.load_spatial_dataframe_dir_profile(dataframe_dir)
+        # exit()
+        if njob == 1:
+            result_array_list = []
+            for df, profile, fname in df_loader:
+                params = (df, col_name, method, profile, profile_merge)
+                result_array = self.kernel_spatial_dataframe_dir_to_tif(params)
+                result_array_list.append(result_array)
+            result_array = np.concatenate(result_array_list, axis=0)
+            return result_array
+
+        else:
+            params_list = []
+            for df, profile, fname in df_loader:
+                params = (df, col_name, method, profile, profile_merge)
+                params_list.append(params)
+            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(process=njob)
+            result_array = np.concatenate(result_array_list, axis=0)
+            return result_array
+
+    def kernel_spatial_dataframe_dir_to_tif(self,params):
+        df, col_name, method, profile, profile_merge = params
+        row = profile['height']
+        col = profile['width']
+        origin_Y = profile['transform'][5]
+        origin_Y_merge = profile_merge['transform'][5]
+        pix_height = profile['transform'][4]
+        row_offset = int((origin_Y_merge - origin_Y) / pix_height)
+        result_array = np.ones((row, col)) * np.nan
+        df_group_dict = Tools().df_groupby(df, 'pix')
+        for pix in df_group_dict:
+            r, c = pix
+            r_new = r + row_offset
+            df_i = df_group_dict[pix]
+            vals = df_i[col_name].values
+            if len(vals) == 0:
+                continue
+            if Tools().is_all_nan(vals):
+                continue
+            vals_mean = method(vals)
+            result_array[r_new, c] = vals_mean
+        return result_array
+
+    def add_tif_to_df(self,dff_dir, tif_fpath, col_name, njob=8, progress_bar=True):
+        df_loader = self.load_spatial_dataframe_dir(dff_dir, progress_bar=progress_bar)
+        data2d, data_profile = RasterIO_Func().read_tif(tif_fpath)
+        val_nodata = data_profile['nodata']
+
+        if njob == 1:
+            for df, profile, fname in df_loader:
+                params = df, data2d, val_nodata, col_name, dff_dir, fname
+                self.kernel_add_tif_to_df(params)
+        else:
+            params_list = []
+            for df, profile, fname in df_loader:
+                params = df, data2d, val_nodata, col_name, dff_dir, fname
+                params_list.append(params)
+            if len(params_list) < njob:
+                njob = len(params_list)
+            MULTIPROCESS(self.kernel_add_tif_to_df, params_list).run(process=njob)
+
+    def kernel_add_tif_to_df(self,params):
+        df, data2d, val_nodata, col_name, dff_dir, fname = params
+        dff_dir = Path(dff_dir)
+        outf = dff_dir / fname
+        # val_list = []
+        pix_list = df['pix'].values
+        rows, cols = zip(*pix_list)
+        val_list = data2d[rows, cols]
+        val_list = np.array(val_list)
+        val_list[val_list == val_nodata] = np.nan
+        df[col_name] = val_list
+        Tools().save_df(df, outf)
+        Tools().df_to_excel(df, outf)
+
+    def spatial_dataframe_to_tif(self,df, profile, profile_merge, outpath, col_name, method):
+        row = profile['height']
+        col = profile['width']
+        origin_Y = profile['transform'][5]
+        origin_Y_merge = profile_merge['transform'][5]
+        pix_height = profile['transform'][4]
+        row_offset = int((origin_Y_merge - origin_Y) / pix_height)
+        profile['count'] = 1
+        result_array = np.ones((row, col)) * profile['nodata']
+        df_group_dict = Tools().df_groupby(df, 'pix')
+        for pix in df_group_dict:
+            r, c = pix
+            r_new = r + row_offset
+            df_i = df_group_dict[pix]
+            vals = df_i[col_name].values
+            if len(vals) == 0:
+                continue
+            if Tools().is_all_nan(vals):
+                continue
+            vals_mean = method(vals)
+            result_array[r_new, c] = vals_mean
+        RasterIO_Func().write_tif(result_array, outpath, profile)
+
+    def spatial_dataframe_to_arr(self,df, profile, profile_merge, col_name, method):
+        row = profile['height']
+        col = profile['width']
+        origin_Y = profile['transform'][5]
+        origin_Y_merge = profile_merge['transform'][5]
+        pix_height = profile['transform'][4]
+        row_offset = int((origin_Y_merge - origin_Y) / pix_height)
+        profile['count'] = 1
+        nodata = profile['nodata']
+        result_array = np.ones((row, col)) * nodata
+        df_group_dict = Tools().df_groupby(df, 'pix')
+        for pix in df_group_dict:
+            r, c = pix
+            r_new = r + row_offset
+            df_i = df_group_dict[pix]
+            vals = df_i[col_name].values
+            if len(vals) == 0:
+                continue
+            if Tools().is_all_nan(vals):
+                continue
+            vals = vals[vals != nodata]
+            vals_mean = method(vals)
+            result_array[r_new, c] = vals_mean
+        return result_array
+
 
 def sleep(t=1):
     time.sleep(t)
@@ -5324,7 +6214,6 @@ def join(*args):
 
 def run_ly_tools():
     raise UserWarning('Do not run this script')
-    pass
 
 
 if __name__ == '__main__':
