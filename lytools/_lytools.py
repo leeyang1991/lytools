@@ -22,7 +22,11 @@ from netCDF4 import Dataset
 
 import multiprocessing
 from multiprocessing.pool import ThreadPool as TPool
+from threading import Thread, Lock
+from pathos.multiprocessing import ProcessPool
 
+
+from functools import partialmethod
 import os
 from os.path import *
 import copyreg
@@ -35,6 +39,12 @@ import time
 import datetime
 import itertools
 import subprocess
+import shutil
+
+import urllib3
+import requests
+from requests.auth import HTTPBasicAuth
+import dns.resolver
 
 from operator import itemgetter
 from itertools import groupby
@@ -55,6 +65,7 @@ from rasterio.io import MemoryFile
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import Affine
 from rasterio.crs import CRS
+from rasterio import windows
 
 import matplotlib as mpl
 from matplotlib.colors import LinearSegmentedColormap
@@ -73,28 +84,26 @@ from pathlib import Path
 import warnings
 
 class Tools:
-    '''
-    小工具
-    '''
 
     def __init__(self):
         pass
 
     def mk_dir(self, dir, force=False):
-        # print('will deprecated in the future version\nuse mkdir instead')
         if not os.path.isdir(dir):
             if force == True:
-                os.makedirs(dir)
+                try:
+                    os.makedirs(dir)
+                except Exception as e:
+                    print(e)
+
             else:
-                os.mkdir(dir)
+                try:
+                    os.mkdir(dir)
+                except Exception as e:
+                    print(e)
 
     def mkdir(self, dir, force=False):
-
-        if not os.path.isdir(dir):
-            if force == True:
-                os.makedirs(dir)
-            else:
-                os.mkdir(dir)
+        self.mk_dir(dir, force)
 
     def mk_class_dir(self, class_name, result_root_this_script, mode=1):
         if mode == 1:
@@ -170,7 +179,7 @@ class Tools:
         except:
             return dict(np.load(f).item())
 
-    def save_distributed_perpix_dic(self, dic, outdir, n=10000):
+    def save_distributed_perpix_dic(self, dic, outdir, n=10000,prefix='spatial_dict',istqdm=True):
         '''
         :param dic:
         :param outdir:
@@ -179,15 +188,21 @@ class Tools:
         '''
         flag = 0
         temp_dic = {}
-        for key in tqdm(dic, 'saving...'):
+        if istqdm:
+            iterator = tqdm(dic, desc='saving...')
+        else:
+            iterator = dic
+        for key in iterator:
             flag += 1
             arr = dic[key]
             arr = np.array(arr)
             temp_dic[key] = arr
             if flag % n == 0:
-                np.save(outdir + '/per_pix_dic_%03d' % (flag / n), temp_dic)
+                outf = join(outdir, f'{prefix}_{int(flag / n):03d}.npy')
+                np.save(outf, temp_dic)
                 temp_dic = {}
-        np.save(outdir + '/per_pix_dic_%03d' % 0, temp_dic)
+        outf = join(outdir, f'{prefix}_{int(flag / n) + 1:03d}.npy')
+        np.save(outf, temp_dic)
 
         pass
 
@@ -969,7 +984,7 @@ class Tools:
         :param key_col_str: define a Dataframe column to store keys of dict
         :return: Dataframe
         '''
-        df = pd.DataFrame()
+        df_list = []
         key_list = []
         for key in tqdm(dic):
             dic_i = dic[key]
@@ -979,9 +994,10 @@ class Tools:
             for k in dic_i:
                 new_dic[k].append(dic_i[k])
             df_i = pd.DataFrame.from_dict(data=new_dic)
-            df = df.append(df_i)
+            df_list.append(df_i)
         # print(len(data[0]))
         # df = pd.DataFrame(data=data, columns=columns, index=index)
+        df = pd.concat(df_list)
         df[key_col_str] = key_list
         columns = df.columns.tolist()
         columns.remove(key_col_str)
@@ -989,7 +1005,7 @@ class Tools:
         df = df[columns]
         return df
 
-    def df_to_spatial_dic(self, df, col_name):
+    def df_to_spatial_dic(self, df, col_name, reduce_method=None):
         pix_list = df['pix']
         val_list = df[col_name]
         set_pix_list = set(pix_list)
@@ -997,7 +1013,16 @@ class Tools:
             spatial_dic = dict(zip(pix_list, val_list))
             return spatial_dic
         else:
-            raise UserWarning(f'"pix" is not unique')
+            if reduce_method == None:
+                raise ValueError('reduce_method must be provided when there are multiple values for the same pix')
+            df_group_dict = self.df_groupby(df,'pix')
+            spatial_dic = {}
+            for pix in df_group_dict:
+                df_i = df_group_dict[pix]
+                vals = df_i[col_name].tolist()
+                reduced_vals = reduce_method(vals)
+                spatial_dic[pix] = reduced_vals
+            return spatial_dic
 
     def is_unique_key_in_df(self, df, unique_key):
         len_df = len(df)
@@ -1944,10 +1969,14 @@ class Tools:
             raise UserWarning('min_or_max must be "min" or "max"')
         return max_min_key
 
-    def listdir_full(self, fdir):
+    def listdir_full(self, fdir, extension=None):
         fdir = Path(fdir)
         f_list = []
         for f in self.listdir(fdir):
+            if extension:
+                assert extension.startswith('.')
+                if not f.endswith(extension):
+                    continue
             fpath = fdir / f
             f_list.append(fpath)
         return f_list
@@ -2126,6 +2155,244 @@ class Tools:
 
         out_data_source = None
         return out_path
+
+
+    def download_simple(self,url,outf):
+        http = urllib3.PoolManager()
+        r = http.request('GET', url, preload_content=False)
+        body = r.read()
+        with open(outf, 'wb') as f:
+            f.write(body)
+
+    def download_file(self,url, outf, num_threads=4, allow_tqdm=True,
+                      custom_dns=None, username=None, password=None
+                      ):
+        '''
+        This function is used to download large files in parallel.
+        username and password are used for authentication [optional]
+        custom_dns is used for custom dns server [optional]
+
+        :param url: download url
+        :param outf: output file path
+        :param num_threads: concurrent download threads
+        :param allow_tqdm: show progress bar
+        :param custom_dns: custom dns server
+        :param username: uesrname
+        :param password: password
+        :return: None
+        '''
+
+        outf = Path(outf)
+        outf_name = outf.name
+        domain = url.split('/')[2]
+
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'}
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        if not custom_dns is None:
+            url = url.replace(domain,self.get_ip_from_custom_dns(domain,custom_dns))
+            headers['Host'] = domain
+
+
+        session = requests.Session()
+        if username:
+            session.auth = HTTPBasicAuth(username, password)
+        response = session.get(url, headers=headers, stream=True, allow_redirects=True,verify=False)
+
+        file_size = int(response.headers.get('content-length', 0))
+
+        response_code = response.status_code
+        if response_code != 200:
+            raise ValueError(f"File not found at URL: {url}\nResponse code: {response_code}")
+
+        if file_size == 0:
+            raise ValueError(f"File size is 0 for URL: {url}")
+        if allow_tqdm:
+            progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True, desc=outf_name)
+        else:
+            progress_bar = None
+        lock = Lock()
+
+        with open(outf, 'wb') as f:
+            f.write(b'\0' * file_size)
+
+        def download_chunk(start, end):
+            headers = {'Range': f'bytes={start}-{end}',
+                       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+                       }
+            if not custom_dns is None:
+                headers['Host'] = domain
+            response = session.get(url, headers=headers, stream=True,verify=False)
+
+            with open(outf, 'rb+') as f:
+                f.seek(start)
+                for chunk in response.iter_content(chunk_size=1024 * 64):
+                    if chunk:
+                        f.write(chunk)
+                        with lock:
+                            if progress_bar:
+                                progress_bar.update(len(chunk))
+
+        chunk_size = file_size // num_threads
+        threads = []
+
+        for i in range(num_threads):
+            start = i * chunk_size
+            end = file_size - 1 if i == num_threads - 1 else (i + 1) * chunk_size - 1
+
+            t = Thread(target=download_chunk, args=(start, end))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+        if progress_bar:
+            progress_bar.close()
+
+    def get_ip_from_custom_dns(self,domain,dns_server='1.1.1.1'):
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = [dns_server]
+        answer = resolver.resolve(domain, 'A')
+        return answer[0].to_text()
+
+    def switch_on_python_plot(self):
+        import matplotlib
+        matplotlib.use('TkAgg')
+
+    def turn_on_python_plot(self):
+        import matplotlib
+        matplotlib.use('TkAgg')
+
+    def is_iterable(self, obj):
+        try:
+            iter(obj)
+            return True
+        except TypeError:
+            return False
+
+    def memory_estimate(self):
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info()
+        print("RSS (MB):", mem.rss / 1024 ** 2)
+        print("VMS (MB):", mem.vms / 1024 ** 2)
+        # pause
+        input('\33[7m' + "PRESS ENTER TO CONTINUE." + '\33[0m')
+
+
+    def merge_dicts_list(self,dict_list):
+        merged_dict = {}
+        for d in dict_list:
+            merged_dict.update(d)
+        return merged_dict
+
+
+    def save_distributed_array(self, large_array, outdir, n=10000,prefix='array',istqdm=True):
+        '''
+        :param large_array:
+        :param outdir:
+        :param n: save to each file every n sample
+        :return:
+        '''
+        flag = 0
+        temp_array = []
+        if istqdm:
+            iterator = tqdm(large_array, desc='saving...')
+        else:
+            iterator = large_array
+        array_len = len(large_array)
+        total_len = array_len // n + 1
+        print('total files number:',total_len)
+        for array_i in iterator:
+            flag += 1
+            arr = np.array(array_i)
+            temp_array.append(arr)
+            if flag % n == 0:
+                digit_str = self.get_digit_str(total_len, int(flag / n))
+                outf = join(outdir, f'{prefix}_{digit_str}.npy')
+                np.save(outf, temp_array)
+                temp_array = {}
+        digit_str = self.get_digit_str(total_len, int(flag / n)+1)
+        outf = join(outdir, f'{prefix}_{digit_str}.npy')
+        np.save(outf, temp_array)
+
+        pass
+
+
+
+    def spatial_dict_to_df_multiple_value_flatten(self, spatial_dict, flatten_cols):
+
+        '''
+        flatten_cols will be flatten, other cols will be copied
+
+        :param spatial_dict:
+        spatial_dict = {
+        row1:{flatten_col1:[val1,val2,val3],flatten_col2:[val1,val2,val3], other_col:val},
+        row2:{flatten_col1:[val1,val2,val3],flatten_col2:[val1,val2,val3], other_col:val},
+        row3:{flatten_col1:[val1,val2,val3],flatten_col2:[val1,val2,val3], other_col:val},
+        }
+        :param flatten_cols: [flatten_col1,flatten_col2]
+        :return: Dataframe with columns: flatten_col1,flatten_col2, other_col
+        '''
+
+        col_list = []
+        for pix in spatial_dict:
+            keys = list(spatial_dict[pix].keys())
+            col_list = keys
+            break
+
+        other_cols = []
+        for col in col_list:
+            if col not in flatten_cols:
+                other_cols.append(col)
+
+        vals_len_dict = {}
+        for col in flatten_cols:
+            for pix in spatial_dict:
+                vals = spatial_dict[pix][col]
+                vals_len = len(vals)
+                vals_len_dict[pix] = vals_len
+            break
+
+        df = pd.DataFrame()
+
+        pix_list = []
+        for pix in spatial_dict:
+            vals_len = vals_len_dict[pix]
+            pix_list.extend([pix] * vals_len)
+        df['pix'] = pix_list
+
+        for col in flatten_cols:
+            vals_all = []
+            for pix in spatial_dict:
+                vals = spatial_dict[pix][col]
+                vals_all.extend(vals)
+            df[col] = vals_all
+
+        for col in other_cols:
+            vals_all = []
+            for pix in spatial_dict:
+                val = spatial_dict[pix][col]
+                vals_len = vals_len_dict[pix]
+                vals_all.extend([val] * vals_len)
+            df[col] = vals_all
+
+
+        return df
+
+    def df_bin_iterator(self, df, col, bins):
+        df_copy = df.copy()
+        df_copy[f'{col}_bins'] = pd.cut(df[col], bins=bins)
+        df_group = df_copy.groupby([f'{col}_bins'])
+        for name,df_group_i in df_group:
+            name_str = str(name[0])
+            yield df_group_i, name_str
+
+    def get_digit_str(self,total_len,idx):
+        digit = math.log(total_len, 10) + 1
+        digit = int(digit)
+        digit_str = f'{idx:0{digit}d}'
+        return digit_str
+
 
 class SMOOTH:
     '''
@@ -3194,15 +3461,12 @@ class DIC_and_TIF:
 
 
 class MULTIPROCESS:
-    '''
-    可对类内的函数进行多进程并行
-    由于GIL，多线程无法跑满CPU，对于不占用CPU的计算函数可用多线程
-    并行计算加入进度条
-    '''
 
-    def __init__(self, func, params):
+    def __init__(self, func, params, istqdm=False,istqdm_inner=False):
         self.func = func
         self.params = params
+        self.istqdm = istqdm
+        self.istqdm_inner = istqdm_inner
         copyreg.pickle(types.MethodType, self._pickle_method)
         pass
 
@@ -3212,41 +3476,29 @@ class MULTIPROCESS:
         else:
             return getattr, (m.__self__, m.__func__.__name__)
 
+    def func_wrapper(self, *args, **kwargs):
+        if not self.istqdm_inner:
+            tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+        return self.func(*args, **kwargs)
+
     def run(self, process=4, process_or_thread='p', **kwargs):
-        '''
-        # 并行计算加进度条
-        :param func: input a kenel_function
-        :param params: para1,para2,para3... = params
-        :param process: number of cpu
-        :param thread_or_process: multi-thread or multi-process,'p' or 't'
-        :param kwargs: tqdm kwargs
-        :return:
-        '''
-
-        if process > 0:
-            if process_or_thread == 'p':
-                pool = multiprocessing.Pool(process)
-            elif process_or_thread == 't':
-                pool = TPool(process)
-            else:
-                raise IOError('process_or_thread key error, input keyword such as "p" or "t"')
-
-            results = list(tqdm(pool.imap(self.func, self.params), total=len(self.params), **kwargs))
-            pool.close()
-            pool.join()
-            return results
+        assert process > 0
+        if process_or_thread == 'p':
+            # pool = multiprocessing.Pool(process)
+            pool = ProcessPool(nodes=process)
+        elif process_or_thread == 't':
+            pool = TPool(process)
         else:
-            if process_or_thread == 'p':
-                pool = multiprocessing.Pool()
-            elif process_or_thread == 't':
-                pool = TPool()
-            else:
-                raise IOError('process_or_thread key error, input keyword such as "p" or "t"')
-
-            results = list(tqdm(pool.imap(self.func, self.params), total=len(self.params), **kwargs))
-            pool.close()
-            pool.join()
-            return results
+            raise IOError('process_or_thread key error, input keyword such as "p" or "t"')
+        if self.istqdm:
+            results = list(tqdm(pool.imap(self.func_wrapper, self.params), total=len(self.params), **kwargs))
+        else:
+            results = pool.map(self.func_wrapper, self.params)
+        pool.close()
+        pool.join()
+        if process_or_thread == 'p':
+            pool.clear()
+        return results
 
 
 class KDE_plot:
@@ -4814,7 +5066,7 @@ class HANTS:
         '''
         values_list = np.array(values_list)
         values_list[np.isnan(values_list)] = valid_range[0]
-        values_dict = dict(zip(dates_list, values_list))
+        values_dict = Tools().dict_zip(dates_list, values_list)
         annual_date_dict = {}
         for date in values_dict:
             year = date.year
@@ -4825,7 +5077,9 @@ class HANTS:
         valid_year_list = []
         for year in annual_date_dict:
             date_list_i = annual_date_dict[year]
-            if len(date_list_i) < 365 * valid_ratio:
+            # print(date_list_i)
+            # exit()
+            if len(date_list_i) < len(date_list_i) * valid_ratio:
                 if not silent:
                     print(f'{year} has less than {valid_ratio*100:.1f}% valid data, skip')
                 invalid_year_list.append(year)
@@ -4872,6 +5126,8 @@ class HANTS:
             interpolated_values_list.append(ynew)
 
         interpolated_values_list = np.array(interpolated_values_list)
+        # print(interpolated_values_list)
+        # exit()
         results = self.__hants(sample_count=365, inputs=interpolated_values_list, low=valid_range[0],
                                   high=valid_range[1],
                                   fit_error_tolerance=std)
@@ -5103,7 +5359,9 @@ class Decorator:
     def shutup_gdal(func):
         def wrapper(*args, **kwargs):
             gdal.PushErrorHandler('CPLQuietErrorHandler')
+            warnings.simplefilter(action='ignore', category=FutureWarning)
             return func(*args, **kwargs)
+
         return wrapper
 
     @staticmethod
@@ -5138,7 +5396,17 @@ class Decorator:
 
         return wrapper
     pass
-class Tif_loader:
+
+    @staticmethod
+    def shutup_tqdm(func):
+        def wrapper(*args, **kwargs):
+            tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+
+class Tif_loader_Mem:
 
     def __init__(self,flist,memory_allocate,dtype=None,nodata=None,mute=False):
         self.flist = flist
@@ -5386,11 +5654,257 @@ class Tif_loader:
         patch_concat, profile_new = self.array_iterator_index(idx)
         patch_concat_2d = method(patch_concat, axis=0, where=patch_concat != nodata)
         return patch_concat_2d
+    
+class Tif_loader_Height:
+
+    def __init__(self,flist,block_height,dtype=None,nodata=None,mute=False):
+        self.flist = flist
+        # self.image_height = image_height
+        self.profile = self.get_image_profiles(flist[0])
+        if nodata==None:
+            pass
+        else:
+            self.profile.update(nodata=nodata)
+        # pprint(profile)
+        self.h = self.profile['height']
+        self.w = self.profile['width']
+        if dtype == None:
+            self.dtype = self.profile['dtype']
+        else:
+            self.dtype = dtype
+        self.profile.update(dtype=self.dtype)
+        # pprint(self.profile)
+        self.available_rows = block_height
+        self.iter_length = math.ceil(self.h / self.available_rows)
+        self.block_index_list = list(range(math.ceil(self.h / self.available_rows)))
+        if not mute:
+            print('input file size:', f'h:{self.h},w:{self.w}')
+            print('input file count:', len(self.flist))
+            print('output block size:', f'h:{self.available_rows},w:{self.w}')
+            print('output block count:', self.iter_length)
+            print('------------------')
+        pass
+
+    def array_iterator(self):
+        idx = 0
+        for row in range(0, self.h, self.available_rows):
+            patch_concat_list = []
+            for fpath in self.flist:
+                with rasterio.open(fpath) as src:
+                    patch = src.read(
+                        window=((row, row + self.available_rows),(0, self.w))
+                    )
+                    patch_concat_list.append(patch)
+            patch_concat = np.concatenate(patch_concat_list, axis=0)
+            patch_concat_list = []
+
+            window = Window(col_off=0, row_off=self.available_rows * idx, width=self.w, height=self.available_rows)
+            new_transform = rasterio.windows.transform(window, src.transform)
+
+            profile_new = self.profile.copy()
+            profile_new['height'] = self.available_rows
+            profile_new['transform'] = new_transform
+            transform = profile_new['transform']
+            idx += 1
+            yield patch_concat, profile_new
+
+    def array_iterator_index(self,idx):
+
+        row_list = list(range(0, self.h, self.available_rows))
+        row = row_list[idx]
+        patch_concat_list = []
+        for fpath in self.flist:
+        # for fpath in tqdm(self.flist):
+            with rasterio.open(fpath) as src:
+                patch = src.read(
+                    window=((row, row + self.available_rows),(0, self.w))
+                )
+                patch_concat_list.append(patch)
+        patch_concat = np.concatenate(patch_concat_list, axis=0)
+        # print(patch_concat.shape)
+        # exit()
+        patch_concat_list = []
+
+        window = Window(col_off=0, row_off=self.available_rows*idx, width=self.w,height=patch_concat.shape[1])
+        new_transform = rasterio.windows.transform(window, src.transform)
+
+        profile_new = self.profile.copy()
+        profile_new['height'] = patch_concat.shape[1]
+        profile_new['transform'] = new_transform
+        transform = profile_new['transform']
+        return patch_concat,profile_new
+
+    def sizeof_fmt(self, num, suffix="B"):
+        for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+            if abs(num) < 1024.0:
+                return f"{num:3.1f}{unit}{suffix}"
+            num /= 1024.0
+        return f"{num:.1f}Yi{suffix}"
+
+
+    def get_image_profiles(self,fpath):
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            return profile
+
+    def transform_to_block(self,outdir,njob=8,band_name_list=None,istqdm=False):
+        Tools().mkdir(outdir,True)
+        flist = self.flist
+        if band_name_list == None:
+            band_name_list = []
+            for fpath in flist:
+                fpath_obj = Path(fpath)
+                band_name = fpath_obj.name
+                band_name_list.append(band_name)
+        else:
+            assert len(band_name_list) == len(flist)
+        if njob == 1:
+            if istqdm:
+                block_index_list_iter = tqdm(self.block_index_list,desc='transform to block')
+            else:
+                block_index_list_iter = self.block_index_list
+            for idx in block_index_list_iter:
+                patch_concat,profile_new = self.array_iterator_index(idx)
+                outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.tif')
+                outf_is_ok = False
+                if isfile(outf):
+                    outf_is_ok = self.check_blocls(outf,band_name_list)
+                    if outf_is_ok:
+                        continue
+                RasterIO_Func().write_tif_multi_bands(patch_concat, outf, profile_new, band_name_list)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [outdir,idx,band_name_list]
+                params_list.append(params)
+            MULTIPROCESS(self.kernel_transform_to_block,params_list,istqdm=istqdm).run(process=njob)
+        pass
+
+    def kernel_transform_to_block(self,params):
+        outdir,idx,band_name_list = params
+        outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.tif')
+        outf_is_ok = False
+        if isfile(outf):
+            outf_is_ok = self.check_blocls(outf, band_name_list)
+            if outf_is_ok:
+                return
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        RasterIO_Func().write_tif_multi_bands(patch_concat, outf, profile_new, band_name_list)
+
+
+    def check_blocls(self,fpath,bands_description):
+        try:
+            bands_description_read = RasterIO_Func().read_tif_band_names(fpath)
+        except:
+            print('Old file is error, will overwrite',fpath)
+            return False
+        band_name1 = bands_description_read[0]
+        band_name_origin_1 = bands_description[0]
+        try:
+            if band_name1 != band_name_origin_1:
+                return False
+        except:
+            return False
+        return True
+
+    def transform_to_spatial_dict(self,outdir,njob=8):
+        Tools().mkdir(outdir)
+        flist = self.flist
+        band_name_list = []
+        for fpath in flist:
+            fpath_obj = Path(fpath)
+            band_name = fpath_obj.name
+            band_name_list.append(band_name)
+        if njob == 1:
+            for idx in tqdm(self.block_index_list,desc='transform to spatial dict'):
+                patch_concat,profile_new = self.array_iterator_index(idx)
+                row_size = patch_concat.shape[1]
+                col_size = patch_concat.shape[2]
+                spatial_dict = {}
+                for r in range(row_size):
+                    for c in range(col_size):
+                        vals = patch_concat[:,r,c]
+                        spatial_dict[(r+idx*self.available_rows,c)] = vals
+                outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.npy')
+                Tools().save_npy(spatial_dict,outf)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [outdir,idx]
+                params_list.append(params)
+            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(process=njob)
+
+    def kernel_transform_to_spatial_dict(self,params):
+        outdir, idx = params
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        row_size = patch_concat.shape[1]
+        col_size = patch_concat.shape[2]
+        spatial_dict = {}
+        for r in range(row_size):
+            for c in range(col_size):
+                vals = patch_concat[:, r, c]
+                spatial_dict[(r + idx * self.available_rows, c)] = vals
+        outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.npy')
+        Tools().save_npy(spatial_dict, outf)
+
+    def get_digit_str(self,total_len,idx):
+        digit = math.log(total_len, 10) + 1
+        digit = int(digit)
+        digit_str = f'{idx:0{digit}d}'
+        return digit_str
+
+    def check_tifs(self):
+        failed_flist = []
+        for fpath in self.flist:
+            try:
+                with rasterio.open(fpath) as src:
+                    profile = src.profile
+                    # print(profile)
+            except Exception as e:
+                print(f'check tif error:{fpath}')
+                print(e)
+                print('----')
+                failed_flist.append(fpath)
+        return failed_flist
+
+    def reduce(self,method,njob=8):
+        flist = self.flist
+        nodata=self.profile['nodata']
+
+        band_name_list = []
+        for fpath in flist:
+            fpath_obj = Path(fpath)
+            band_name = fpath_obj.name
+            band_name_list.append(band_name)
+        if njob == 1:
+            results_2darray_list = []
+            for idx in self.block_index_list:
+                params = [idx,method,nodata]
+                results_2darray_i = self.kernel_reduce(params)
+                results_2darray_list.append(results_2darray_i)
+        else:
+            params_list = []
+            for idx in self.block_index_list:
+                params = [idx,method,nodata]
+                params_list.append(params)
+            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob, desc=f'{method.__name__}')
+
+        results_2darray = np.concatenate(results_2darray_list,axis=0)
+        profile = copy.copy(self.profile)
+        profile['count'] = 1
+        return results_2darray,profile
+
+
+    def kernel_reduce(self,params):
+        idx, method, nodata = params
+        patch_concat, profile_new = self.array_iterator_index(idx)
+        patch_concat_2d = method(patch_concat)
+        return patch_concat_2d
 
 class RasterIO_Func:
 
     def __init__(self):
-
+        warnings.simplefilter(action='ignore', category=FutureWarning)
         pass
 
     def write_tif(self, array, outf, profile):
@@ -5498,9 +6012,15 @@ class RasterIO_Func:
         with rasterio.open(outf, "w", **profile) as dst:
             dst.write(subset)
 
-    def mosaic_arrays(self,array_list,profile_list):
+    def mosaic_arrays(self,array_list,profile_list,istqdm=True):
         datasets = []
-        for arr, prof in tqdm(zip(array_list, profile_list),total=len(array_list),desc='mosaic'):
+
+        if istqdm:
+            iter_obj = tqdm(zip(array_list, profile_list),total=len(array_list),desc='mosaic')
+        else:
+            iter_obj = zip(array_list, profile_list)
+
+        for arr, prof in iter_obj:
             if arr.ndim == 2 and prof["count"] == 1:
                 arr = arr[np.newaxis, :, :]
 
@@ -5514,7 +6034,6 @@ class RasterIO_Func:
             with memfile.open(**prof) as dataset:
                 dataset.write(arr)
             datasets.append(memfile.open())
-        print('mosaic datasets...')
         mosaic, mosaic_transform = merge(datasets)
         out_profile = profile_list[0].copy()
         out_profile.update({
@@ -5522,20 +6041,25 @@ class RasterIO_Func:
             "width": mosaic.shape[2],
             "transform": mosaic_transform
         })
-        print('mosaic datasets done')
         return mosaic,out_profile
 
-    def mosaic_tifs(self,flist,outf,bigtiff="NO"):
+    def mosaic_tifs(self,flist,outf,bigtiff="NO",istqdm=True):
         array_list = []
         profile_list = []
-        for fpath in tqdm(flist,desc='read tifs'):
+        if istqdm:
+            iter_obj = tqdm(flist,desc='read tifs')
+        else:
+            iter_obj = flist
+        bands_description = None
+        for fpath in iter_obj:
             array,profile = self.read_tif(fpath)
             array_list.append(array)
             profile_list.append(profile)
-        mosaic,out_profile = self.mosaic_arrays(array_list,profile_list)
+            bands_description = self.read_tif_band_names(fpath)
+        mosaic,out_profile = self.mosaic_arrays(array_list,profile_list,istqdm)
         if bigtiff == "YES":
             out_profile.update(bigtiff=bigtiff)
-        self.write_tif_multi_bands(mosaic, outf, out_profile)
+        self.write_tif_multi_bands(mosaic, outf, out_profile,bands_description=bands_description)
 
         pass
 
@@ -5672,6 +6196,113 @@ class RasterIO_Func:
         bounds = self.get_tif_bounds_(clip_tif)
         self.clip_tif_by_bounds(in_tif,out_tif,bounds)
 
+    def pick_3darray_by_bands_description(self,fpath,selected_band_description):
+        tif_bands_description = self.read_tif_band_names(fpath)
+        idx_list = []
+        for idx,name in enumerate(tif_bands_description):
+            if name in selected_band_description:
+                idx_list.append(idx)
+        if len(idx_list) != len(selected_band_description):
+            raise ValueError('band description does not match selected band description')
+        data3d, profile = self.read_tif(fpath)
+        data3d_selected = data3d[idx_list,:,:]
+        profile['count'] = len(selected_band_description)
+        return data3d_selected, profile
+
+    def tif_vals_iterator(self,fpath):
+        data3d, _ = self.read_tif(fpath)
+        dimension = data3d.shape
+        if len(dimension) == 3:
+            for r in range(data3d.shape[1]):
+                for c in range(data3d.shape[2]):
+                    vals = data3d[:, r, c]
+                    yield r, c, vals
+        elif len(dimension) == 2:
+            for r in range(data3d.shape[0]):
+                for c in range(data3d.shape[1]):
+                    vals = data3d[r, c]
+                    yield r, c, vals
+        else:
+            raise ValueError('dimension must be 2 or 3')
+        pass
+
+    def gen_void_array_like(self,fpath):
+        profile = self.read_raster_profile(fpath)
+        width = profile['width']
+        height = profile['height']
+        count = profile['count']
+        nodata = profile['nodata']
+        dtype = profile['dtype']
+        void_array = np.ones((count, height, width),dtype=dtype) * nodata
+        return void_array
+
+    def tif_vals_iterator_total_count(self,fpath):
+        profile = self.read_raster_profile(fpath)
+        width = profile['width']
+        height = profile['height']
+        total_num = width * height
+        return total_num
+
+    def tif_vals_iterator_tqdm(self,fpath,desc=None):
+        profile = self.read_raster_profile(fpath)
+        width = profile['width']
+        height = profile['height']
+        total_num = width * height
+        iterator = self.tif_vals_iterator(fpath)
+        iterator_tqdm = tqdm(iterator,total=total_num,desc=desc)
+        return iterator_tqdm
+
+    def array_3d_vals_iterator(self,data3d):
+        for r in range(data3d.shape[1]):
+            for c in range(data3d.shape[2]):
+                vals = data3d[:, r, c]
+                yield r, c, vals
+
+        pass
+
+    def read_raster_profile(self,fpath):
+        with rasterio.open(fpath) as src:
+            profile = src.profile
+            return profile
+
+
+
+    def tif_to_spatial_dict(self,fpath):
+        data,profile = self.read_tif(fpath)
+
+        height = profile['height']
+        width = profile['width']
+        count = profile['count']
+        bands_description = self.read_tif_band_names(fpath)
+        profile['bands_description'] = bands_description
+        dimension = len(data.shape)
+        if dimension == 2:
+            row_num = data.shape[0]
+            col_num = data.shape[1]
+            spatial_dict = {}
+            for r in range(row_num):
+                for c in range(col_num):
+                    val = data[r, c]
+                    pix = (r,c)
+                    spatial_dict[pix] = val
+            return spatial_dict,profile
+
+        elif dimension == 3:
+            row_num = data.shape[1]
+            col_num = data.shape[2]
+            spatial_dict = {}
+            for r in range(row_num):
+                for c in range(col_num):
+                    val = data[:, r, c]
+                    pix = (r, c)
+                    spatial_dict[pix] = val
+            return spatial_dict,profile
+        else:
+            raise ValueError("Invalid array dimensions for rasterio write")
+
+    def spatial_dict_to_tif(self,*args,**kwargs):
+        DIC_and_DF().spatial_dict_to_tif(*args,**kwargs)
+
 class Block_Handler:
     '''
     Handle 3d-raster blocks
@@ -5687,10 +6318,6 @@ class Block_Handler:
         self.endY = endY_most
         self.pixelsize = pixelsize_f
 
-    def run(self):
-        # self.transform_block_to_spatial_dict(join(temp_root,'spatial_dict'))
-        # self.transform_spatial_dict_to_block(join(temp_root,'spatial_dict'),join(temp_root,'block'))
-        pass
 
     def get_pix_key(self,pix_key_outdir=None):
         global_originX = self.originX
@@ -5807,41 +6434,25 @@ class Block_Handler:
 
         pass
 
-    def transform_block_to_spatial_dict(self,outdir):
-        # todo: add parallel processing
+    def transform_block_to_spatial_dict(self,outdir,njobs=8):
         outdir = Path(outdir)
         Tools().mkdir(outdir,force=True)
         pix_key_dict = self.get_pix_key()
         metadata_dict = {}
-        for fpath in tqdm(pix_key_dict,desc='transform_block_to_spatial_dict'):
+        params_list = []
+        for fpath in pix_key_dict:
             fname = Path(fpath).name
-            outf = outdir / f'{fname}.npy'
-            data3d,profile = RasterIO_Func().read_tif(fpath)
-            nodata = profile['nodata']
-            # print(nodata)
-            # exit()
             bands_description = RasterIO_Func().read_tif_band_names(fpath)
-            key_array = pix_key_dict[fpath]
-            row,col = data3d.shape[1],data3d.shape[2]
-            spatial_dict = {}
-            for r in range(row):
-                for c in range(col):
-                    global_r = key_array[0][r][c]
-                    global_c = key_array[1][r][c]
-                    vals = data3d[:,r,c]
-                    # print(vals,nodata)
-                    if Tools().is_all_nan(vals,nodata):
-                        continue
-
-                    if Tools().is_all_nan(vals):
-                        continue
-                    spatial_dict[(int(global_r),int(global_c))] = vals
-            Tools().save_npy(spatial_dict,outf)
+            profile = rasterio.open(fpath).profile
             profile['bands_description'] = bands_description
             metadata_dict[fname+'.npy'] = profile
+            params = (outdir,fname,fpath,pix_key_dict)
+            params_list.append(params)
+
         outf_metadata = outdir / 'metadata.dict'
         outf_metadata = str(outf_metadata)
         Tools().save_dict_to_binary(metadata_dict,outf_metadata)
+        MULTIPROCESS(self.kernel_transform_block_to_spatial_dict,params_list).run(process=njobs)
         pass
 
     def transform_spatial_dict_to_block(self,fdir_dict,outdir_block):
@@ -5939,6 +6550,95 @@ class Block_Handler:
         return data_reduce
 
 
+    def get_digit_str(self,total_len,idx):
+        digit = math.log(total_len, 10) + 1
+        digit = int(digit)
+        digit_str = f'{idx:0{digit}d}'
+        return digit_str
+
+
+    def kernel_transform_block_to_spatial_dict(self,params):
+        outdir,fname,fpath,pix_key_dict = params
+        outf = outdir / f'{fname}.npy'
+        if isfile(outf):
+            return
+        data3d, profile = RasterIO_Func().read_tif(fpath)
+        nodata = profile['nodata']
+        # print(nodata)
+        # exit()
+        key_array = pix_key_dict[fpath]
+        row, col = data3d.shape[1], data3d.shape[2]
+        spatial_dict = {}
+        for r in range(row):
+            for c in range(col):
+                global_r = key_array[0][r][c]
+                global_c = key_array[1][r][c]
+                vals = data3d[:, r, c]
+                # print(vals,nodata)
+                if Tools().is_all_nan(vals, nodata):
+                    continue
+
+                if Tools().is_all_nan(vals):
+                    continue
+                spatial_dict[(int(global_r), int(global_c))] = vals
+        Tools().save_npy(spatial_dict, outf)
+        pass
+
+
+    def reset_block_height(self,chunk_h, out_dir, progress_bar=False,desc='reset_block_height'):
+        global_profile = self.get_global_profile()
+        width = global_profile['width']
+        height = global_profile['height']
+        global_transform = global_profile['transform']
+
+        count = global_profile['count']
+        block_count = height // chunk_h + 1
+
+        buffer = None
+        idx = 0
+        bands_description = RasterIO_Func().read_tif_band_names(self.block_flist[0])
+        if progress_bar:
+            self.block_flist = tqdm(self.block_flist,desc=desc)
+        for f in self.block_flist:
+            data,profile_old = RasterIO_Func().read_tif(f)
+
+            if buffer is None:
+                buffer = data
+            else:
+                buffer = np.concatenate([buffer, data], axis=1)
+
+            while buffer.shape[1] >= chunk_h:
+                chunk = buffer[:, :chunk_h, :]
+                fname = self.get_digit_str(block_count, idx)
+                out_path = os.path.join(out_dir, f"{fname}.tif")
+
+
+                window = Window(col_off=0, row_off=chunk_h * idx, width=width, height=chunk_h)
+                new_transform = windows.transform(window, global_transform)
+
+                profile_new = global_profile.copy()
+                profile_new['height'] = chunk_h
+                profile_new['transform'] = new_transform
+                if not isfile(out_path):
+                    RasterIO_Func().write_tif_multi_bands(chunk, out_path, profile_new, bands_description)
+
+                idx += 1
+                buffer = buffer[:, chunk_h:, :]
+
+        if buffer is not None and buffer.shape[1] > 0:
+            fname = self.get_digit_str(block_count, idx)
+            out_path = os.path.join(out_dir, f"{fname}.tif")
+
+            window = Window(col_off=0, row_off=chunk_h * idx, width=width, height=buffer.shape[1])
+            new_transform = windows.transform(window, global_transform)
+
+            profile_new = global_profile.copy()
+            profile_new['height'] = buffer.shape[1]
+            profile_new['transform'] = new_transform
+            if not isfile(out_path):
+                RasterIO_Func().write_tif_multi_bands(buffer, out_path, profile_new, bands_description)
+
+
 class DIC_and_DF:
 
     def __init__(self):
@@ -5952,15 +6652,17 @@ class DIC_and_DF:
         if not progress_bar:
             for fname in fname_list:
                 fpath = fdir / fname
-                spatial_dict = Tools().load_npy(fpath)
+                # spatial_dict = Tools().load_npy(fpath)
+                spatial_dict_f = fpath
                 profile = metadata_dict[fname]
-                yield spatial_dict, profile, fname
+                yield spatial_dict_f, profile, fname
         else:
             for fname in tqdm(fname_list, desc=desc, **kwargs):
                 fpath = fdir / fname
-                spatial_dict = Tools().load_npy(fpath)
+                # spatial_dict = Tools().load_npy(fpath)
+                spatial_dict_f = fpath
                 profile = metadata_dict[fname]
-                yield spatial_dict, profile, fname
+                yield spatial_dict_f, profile, fname
 
     def load_spatial_dataframe_dir(self,fdir, progress_bar=False, desc='loading df', **kwargs):
         fdir = Path(fdir)
@@ -6018,8 +6720,8 @@ class DIC_and_DF:
             originY_list.append(originY)
             endX_list.append(endX)
             endY_list.append(endY)
-        if 'bands_description' in profile:
-            del profile['bands_description']
+        # if 'bands_description' in profile:
+        #     del profile['bands_description']
         # pprint(profile)
         originX_most = min(originX_list)
         originY_most = max(originY_list)
@@ -6194,8 +6896,124 @@ class DIC_and_DF:
             vals_mean = method(vals)
             result_array[r_new, c] = vals_mean
         return result_array
+    
+    def copy_metadata_dict(self,fdir,outdir):
+        fpath = join(fdir,'metadata.dict.pkl')
+        if not isfile(fpath):
+            raise FileNotFoundError(f'{fpath} not exist')
+        outpath = join(outdir,'metadata.dict.pkl')
+        shutil.copyfile(fpath,outpath)
+        
+    def spatial_dict_dir_to_block(self,fdir, outdir, njobs=8):
+
+        spatial_dict_loader = self.load_spatial_dict_dir(fdir)
+        profile_list = []
+        for spatial_dict_f, profile, fname in spatial_dict_loader:
+            profile_list.append(profile)
+        global_profile = self.merge_profiles(profile_list)
+        # pprint(global_profile)
+        # exit()
+        global_PixelWidth = global_profile['transform'][0]
+        global_PixelHeight = global_profile['transform'][4]
+
+        global_originX = global_profile['transform'][2]
+        global_originY = global_profile['transform'][5]
+
+        spatial_dict_loader = self.load_spatial_dict_dir(fdir)
+        params_list = []
+        for spatial_dict_f, profile, fname in spatial_dict_loader:
+            outf = join(outdir, fname)
+            if not fname.endswith('.tif'):
+                outf = outf + '.tif'
+
+            height = profile['height']
+            width = profile['width']
+            nodata = profile['nodata']
+            dtype = profile['dtype']
+            count = profile['count']
+            bands_description = profile['bands_description']
+            bands_description = list(bands_description)
+            # print(bands_description)
+            # exit()
+            if isfile(outf):
+                continue
+            params = (count, height, width, dtype, nodata, spatial_dict_f, profile, global_originX, global_originY,
+                        outf, bands_description)
+            params_list.append(params)
+        MULTIPROCESS(self.kernel_spatial_dict_dir_to_block,params_list).run(njobs)
+        
+    def kernel_spatial_dict_dir_to_block(self,params):
+        (count, height, width, dtype, nodata, spatial_dict_f, profile, global_originX, global_originY,
+         outf, bands_description) = params
+        null_array3d = np.ones((count, height, width), dtype=dtype) * nodata
+        spatial_dict = Tools().load_npy(spatial_dict_f)
+
+        PixelWidth = profile['transform'][0]
+        PixelHeight = profile['transform'][4]
+
+        originX = profile['transform'][2]
+        originY = profile['transform'][5]
+
+        offset_x = int((originX - global_originX) / PixelWidth)
+        offset_y = int((global_originY - originY) / abs(PixelHeight))
+
+        for key in spatial_dict:
+            vals = spatial_dict[key]
+            r, c = key
+            _r = r - offset_y
+            null_array3d[:, _r, c] = vals
+        RasterIO_Func().write_tif_multi_bands(null_array3d, outf, profile, bands_description)
+        
+    def spatial_dict_to_tif(self,spatial_dict,profile,outf,bands_description=None,nodata=np.nan):
+        dimension = -99
+        dtype = np.float32
+        vals_init = [np.nan]
+        for pix in spatial_dict:
+            vals_init = spatial_dict[pix]
+            r, c = pix
+            dimension = len(np.shape(vals_init))
+            break
 
 
+        height = profile['height']
+        width = profile['width']
+        profile['nodata'] = nodata
+        profile['dtype'] = dtype
+
+        if len(spatial_dict) == 0:
+            void_array = np.ones((height, width), dtype=dtype) * nodata
+            RasterIO_Func().write_tif(void_array,outf,profile)
+            return
+
+        if dimension == 0:
+            void_array = np.ones((height, width), dtype=dtype) * nodata
+        elif dimension == 1:
+            count = len(vals_init)
+            void_array = np.ones((count, height, width), dtype=dtype) * nodata
+        else:
+            raise ValueError(f'dimension {dimension} in spatial dict must be a number or a list of number')
+
+        for pix in spatial_dict:
+            vals = spatial_dict[pix]
+            r, c = pix
+            if dimension == 0:
+                void_array[r, c] = vals
+            elif dimension == 1:
+                void_array[:, r, c] = vals
+            else:
+                raise ValueError('dimension in spatial dict must be a number or a list of number')
+        if dimension == 0:
+            RasterIO_Func().write_tif(void_array,outf,profile)
+        elif dimension == 1:
+            count = len(vals_init)
+            profile['count'] = count
+            RasterIO_Func().write_tif_multi_bands(void_array, outf, profile, bands_description)
+            
+    def df_to_spatial_dic(self, df, col_name, reduce_method=None):
+        return Tools().df_to_spatial_dic(df, col_name, reduce_method=reduce_method)
+    
+    
+    
 def sleep(t=1):
     time.sleep(t)
 

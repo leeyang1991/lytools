@@ -36,5 +36,11 @@ setup(
     'openpyxl',
     'rasterio',
     'geopandas',
+    'dnspython',
+    'urllib3',
+    'requests',
+    'shutil',
+    'pathos',
+
     ],
 )
