@@ -8,6 +8,7 @@ import numpy as np
 import numpy.ma as ma
 
 from tqdm import tqdm
+import re
 
 from scipy import stats
 from scipy.stats import gaussian_kde as kde
@@ -42,6 +43,7 @@ import subprocess
 import shutil
 
 import urllib3
+from urllib.parse import urlparse, unquote
 import requests
 from requests.auth import HTTPBasicAuth
 import dns.resolver
@@ -94,13 +96,14 @@ class Tools:
                 try:
                     os.makedirs(dir)
                 except Exception as e:
-                    print(e)
+                    print('dir dup:', e)
 
             else:
                 try:
                     os.mkdir(dir)
                 except Exception as e:
-                    print(e)
+                    print('dir dup:', e)
+        pass
 
     def mkdir(self, dir, force=False):
         self.mk_dir(dir, force)
@@ -1831,9 +1834,41 @@ class Tools:
         DOY = [date.days for date in date_delta]
         return DOY
 
-    def gen_colors(self, color_list_number, palette='Spectral'):
+    def gen_colors(self, color_list_number, palette='Spectral',mode='RGB',dtype='float'):
         color_list = sns.color_palette(palette, color_list_number)
-        return color_list
+        color_list = np.array(color_list)
+
+        if mode == 'RGB':
+            if dtype == 'float':
+                return color_list
+            elif dtype == 'int':
+                color_list = color_list * 255
+                color_list = color_list.astype(int)
+                return color_list
+
+        elif mode == 'RGBA':
+            color_list_new = np.ones((color_list_number, 4))
+            color_list_new[:, :3] = color_list
+            if dtype == 'float':
+                return color_list_new
+            elif dtype == 'int':
+                color_list_new = color_list_new * 255
+                color_list_new = color_list_new.astype(int)
+                return color_list_new
+
+        elif mode == 'HEX':
+            hex_color_list = []
+            for color in color_list:
+                color_int = color*255
+                color_int = color_int.astype(int)
+                hex_color = self.rgb_to_hex(color_int)
+                hex_color_list.append(hex_color)
+            return hex_color_list
+
+    def rgb_to_hex(self, color):
+        color = np.array(color)
+        r,g,b = color[:3]
+        return f'#{r:02x}{g:02x}{b:02x}'
 
     def del_columns(self, df, columns: list):
         df = df.drop(columns=columns, axis=1)
@@ -2164,90 +2199,347 @@ class Tools:
         with open(outf, 'wb') as f:
             f.write(body)
 
-    def download_file(self,url, outf, num_threads=4, allow_tqdm=True,
-                      custom_dns=None, username=None, password=None
-                      ):
+    def download_file(
+            self,
+            url,
+            outf=None,
+            outdir=None,
+            num_threads=4,
+            allow_tqdm=True,
+            custom_dns=None,
+            username=None,
+            password=None,
+            overwrite=False,
+    ):
         '''
-        This function is used to download large files in parallel.
-        username and password are used for authentication [optional]
-        custom_dns is used for custom dns server [optional]
+        Download large file in parallel with:
+            - auto filename detection
+            - range support detection
+            - overwrite control
 
-        :param url: download url
-        :param outf: output file path
-        :param num_threads: concurrent download threads
-        :param allow_tqdm: show progress bar
-        :param custom_dns: custom dns server
-        :param username: uesrname
-        :param password: password
-        :return: None
+        Parameters
+        ----------
+        url : str
+            Download URL
+
+        outf : str | Path | None
+            Full output file path
+
+        outdir : str | Path | None
+            Output directory if outf is None
+
+        num_threads : int
+            Concurrent threads
+
+        allow_tqdm : bool
+            Show progress bar
+
+        custom_dns : str | None
+            Custom DNS server
+
+        username/password : str | None
+            HTTP basic auth
+
+        overwrite : bool
+            Whether overwrite existing file
+
         '''
 
-        outf = Path(outf)
-        outf_name = outf.name
-        domain = url.split('/')[2]
-
-        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'}
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        if not custom_dns is None:
-            url = url.replace(domain,self.get_ip_from_custom_dns(domain,custom_dns))
-            headers['Host'] = domain
-
-
+        # =========================================================
+        # Session
+        # =========================================================
         session = requests.Session()
+
         if username:
             session.auth = HTTPBasicAuth(username, password)
-        response = session.get(url, headers=headers, stream=True, allow_redirects=True,verify=False)
+
+        headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/146.0.0.0 Safari/537.36'
+            )
+        }
+
+        domain = url.split('/')[2]
+
+        if custom_dns is not None:
+            url = url.replace(
+                domain,
+                self.get_ip_from_custom_dns(domain, custom_dns)
+            )
+            headers['Host'] = domain
+
+        # =========================================================
+        # HEAD request
+        # =========================================================
+        response = session.get(
+            url,
+            headers=headers,
+            stream=True,
+            allow_redirects=True,
+            verify=False
+        )
+
+        if response.status_code >= 400:
+            raise ValueError(
+                f'Cannot access URL:\n{url}\n'
+                f'Status code: {response.status_code}'
+            )
+
+
+        # =========================================================
+        # Detect Range support
+        # =========================================================
+        accept_ranges = response.headers.get('accept-ranges', '').lower()
+
+        supports_range = accept_ranges == 'bytes'
+
+        # some servers lie -> extra test
+        if supports_range:
+
+            test_headers = headers.copy()
+            test_headers['Range'] = 'bytes=0-10'
+
+            test_response = session.get(
+                url,
+                headers=test_headers,
+                stream=True,
+                verify=False,
+                allow_redirects=True,
+            )
+
+            if test_response.status_code != 206:
+                supports_range = False
+
+        if not supports_range:
+            num_threads = 1
+
+        # =========================================================
+        # Determine output filename
+        # =========================================================
+        if outf is None:
+
+            if outdir is None:
+                raise ValueError(
+                    'When outf is None, outdir must be specified.'
+                )
+
+            outdir = Path(outdir)
+            outdir.mkdir(parents=True, exist_ok=True)
+
+            filename = None
+
+            content_disp = response.headers.get('Content-Disposition')
+
+            if content_disp:
+                match = re.findall(
+                    'filename="?([^"]+)"?',
+                    content_disp
+                )
+                if match:
+                    filename = match[0]
+
+            if filename is None:
+                parsed = urlparse(response.url)
+
+                filename = Path(
+                    unquote(parsed.path)
+                ).name
+
+            if filename == '':
+                raise ValueError(
+                    f'Cannot determine filename:\n{url}'
+                )
+
+            outf = outdir / filename
+
+        else:
+
+            outf = Path(outf)
+
+            outf.parent.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+        outf_name = outf.name
+
 
         file_size = int(response.headers.get('content-length', 0))
-
-        response_code = response.status_code
-        if response_code != 200:
-            raise ValueError(f"File not found at URL: {url}\nResponse code: {response_code}")
-
         if file_size == 0:
-            raise ValueError(f"File size is 0 for URL: {url}")
+            if overwrite:
+                print(f'Failed to fetch file size:\n{url}\nDownloading {outf_name}')
+                self.download_simple(url, outf)
+                return outf
+
+
+        # =========================================================
+        # Existing file handling
+        # =========================================================
+        if outf.exists():
+
+            existing_size = outf.stat().st_size
+
+            # already complete
+            # if existing_size == file_size:
+            #     print(f'File already exists: {outf}\tDo not need overwrite')
+            #     return outf
+
+            if overwrite:
+
+                outf.unlink()
+
+        # =========================================================
+        # Progress bar
+        # =========================================================
+        downloaded_initial = 0
+
+        if outf.exists():
+            downloaded_initial = outf.stat().st_size
+
         if allow_tqdm:
-            progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True, desc=outf_name)
+
+            progress_bar = tqdm(
+                total=file_size,
+                initial=downloaded_initial,
+                unit='iB',
+                unit_scale=True,
+                desc=outf_name
+            )
+
         else:
             progress_bar = None
+
         lock = Lock()
 
-        with open(outf, 'wb') as f:
-            f.write(b'\0' * file_size)
+        # =========================================================
+        # Preallocate file
+        # =========================================================
+        if not outf.exists():
+            with open(outf, 'wb') as f:
+                f.truncate(file_size)
 
+        # =========================================================
+        # Single thread fallback
+        # =========================================================
+        if num_threads == 1:
+
+            start_byte = 0
+
+            single_headers = headers.copy()
+
+            if start_byte > 0:
+                single_headers['Range'] = f'bytes={start_byte}-'
+
+            r = session.get(
+                url,
+                headers=single_headers,
+                stream=True,
+                verify=False,
+                allow_redirects=True,
+            )
+
+            mode = 'ab' if start_byte > 0 else 'wb'
+
+            with open(outf, mode) as f:
+
+                for chunk in r.iter_content(
+                        chunk_size=1024 * 1024):
+
+                    if chunk:
+
+                        f.write(chunk)
+
+                        if progress_bar:
+                            progress_bar.update(len(chunk))
+
+            if progress_bar:
+                progress_bar.close()
+
+            return outf
+
+        # =========================================================
+        # Multi-thread worker
+        # =========================================================
         def download_chunk(start, end):
-            headers = {'Range': f'bytes={start}-{end}',
-                       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
-                       }
-            if not custom_dns is None:
-                headers['Host'] = domain
-            response = session.get(url, headers=headers, stream=True,verify=False)
+
+            chunk_headers = headers.copy()
+
+            chunk_headers['Range'] = (
+                f'bytes={start}-{end}'
+            )
+
+            r = session.get(
+                url,
+                headers=chunk_headers,
+                stream=True,
+                verify=False,
+                allow_redirects=True,
+            )
 
             with open(outf, 'rb+') as f:
+
                 f.seek(start)
-                for chunk in response.iter_content(chunk_size=1024 * 64):
+
+                for chunk in r.iter_content(
+                        chunk_size=1024 * 64):
+
                     if chunk:
+
                         f.write(chunk)
+
                         with lock:
+
                             if progress_bar:
-                                progress_bar.update(len(chunk))
+                                progress_bar.update(
+                                    len(chunk)
+                                )
+
+        # =========================================================
+        # Resume logic for multithread
+        # =========================================================
+        existing_size = 0
+
+        if outf.exists():
+            existing_size = outf.stat().st_size
 
         chunk_size = file_size // num_threads
+
         threads = []
 
         for i in range(num_threads):
-            start = i * chunk_size
-            end = file_size - 1 if i == num_threads - 1 else (i + 1) * chunk_size - 1
 
-            t = Thread(target=download_chunk, args=(start, end))
+            start = i * chunk_size
+
+            end = (
+                file_size - 1
+                if i == num_threads - 1
+                else (i + 1) * chunk_size - 1
+            )
+
+            # skip completed chunks
+
+            # partially completed chunk
+
+            t = Thread(
+                target=download_chunk,
+                args=(start, end)
+            )
+
             threads.append(t)
+
             t.start()
 
         for t in threads:
             t.join()
+
         if progress_bar:
             progress_bar.close()
+
+        return outf
 
     def get_ip_from_custom_dns(self,domain,dns_server='1.1.1.1'):
         resolver = dns.resolver.Resolver()
@@ -3481,13 +3773,15 @@ class MULTIPROCESS:
             tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
         return self.func(*args, **kwargs)
 
-    def run(self, process=4, process_or_thread='p', **kwargs):
-        assert process > 0
+    def run(self, njobs, process_or_thread='p',ispathos=False, **kwargs):
+        assert njobs > 0
         if process_or_thread == 'p':
-            # pool = multiprocessing.Pool(process)
-            pool = ProcessPool(nodes=process)
+            if ispathos:
+                pool = ProcessPool(nodes=njobs)
+            else:
+                pool = multiprocessing.Pool(njobs)
         elif process_or_thread == 't':
-            pool = TPool(process)
+            pool = TPool(njobs)
         else:
             raise IOError('process_or_thread key error, input keyword such as "p" or "t"')
         if self.istqdm:
@@ -3497,7 +3791,8 @@ class MULTIPROCESS:
         pool.close()
         pool.join()
         if process_or_thread == 'p':
-            pool.clear()
+            if ispathos:
+                pool.clear()
         return results
 
 
@@ -7012,7 +7307,32 @@ class DIC_and_DF:
     def df_to_spatial_dic(self, df, col_name, reduce_method=None):
         return Tools().df_to_spatial_dic(df, col_name, reduce_method=reduce_method)
     
-    
+    def pix_list_to_lon_lat(self, pix_list, profile):
+        lon_list = []
+        lat_list = []
+        transform = profile['transform']
+        pixelHeight = transform[4]
+        pixelWidth = transform[0]
+        originY = transform[5]
+        originX = transform[2]
+        for pix in pix_list:
+            r, c = pix
+            lat = originY + (pixelHeight * r)
+            lon = originX + (pixelWidth * c)
+            lon_list.append(lon)
+            lat_list.append(lat)
+        return lon_list, lat_list
+
+    def pix_to_lon_lat(self, pix, profile):
+        transform = profile['transform']
+        pixelHeight = transform[4]
+        pixelWidth = transform[0]
+        originY = transform[5]
+        originX = transform[2]
+        r, c = pix
+        lat = originY + (pixelHeight * r)
+        lon = originX + (pixelWidth * c)
+        return lon, lat
     
 def sleep(t=1):
     time.sleep(t)

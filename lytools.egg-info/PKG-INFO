@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: lytools
-Version: 0.0.133
+Version: 0.0.135
 Home-page: https://github.com/leeyang1991/lytools
 Author: Yang Li
 Author-email: leeyang1991@gmail.com
@@ -24,7 +24,6 @@ Requires-Dist: geopandas
 Requires-Dist: dnspython
 Requires-Dist: urllib3
 Requires-Dist: requests
-Requires-Dist: shutil
 Requires-Dist: pathos
 Dynamic: author
 Dynamic: author-email

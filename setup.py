@@ -39,7 +39,6 @@ setup(
     'dnspython',
     'urllib3',
     'requests',
-    'shutil',
     'pathos',
 
     ],
