@@ -40,6 +40,7 @@ setup(
     'urllib3',
     'requests',
     'pathos',
+    'xlrd',
 
     ],
 )

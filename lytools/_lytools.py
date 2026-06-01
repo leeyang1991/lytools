@@ -2066,7 +2066,6 @@ class Tools:
             print('errrrr')
             raise ValueError
 
-        pass
 
     def reproject_coordinates(self,x,y,src_crs,dst_crs):
         # Create a transformer object
@@ -2685,6 +2684,59 @@ class Tools:
         digit_str = f'{idx:0{digit}d}'
         return digit_str
 
+    def extract_gs_South_Hemi(self,val_list, date_obj_list, gs_list):
+        # gs_list: [10,11,12,1,2,3,4]
+        if gs_list[-1] < gs_list[0]:
+            # south HM
+            gs_part1 = list(range(gs_list[0], 13))
+            gs_part2 = list(range(1, gs_list[-1] + 1))
+            data_dict = self.dict_zip(date_obj_list, val_list)
+            year_list = []
+            for date in date_obj_list:
+                year = date.year
+                year_list.append(year)
+            year_list_set = list(set(year_list))
+            year_list_set.sort()
+
+            # extract part1
+            gs1_data_dict = {}
+            for date in data_dict:
+                year_i = date.year
+                if not year_i in gs1_data_dict:
+                    gs1_data_dict[year_i] = []
+                month_i = date.month
+                if not month_i in gs_part1:
+                    continue
+                val = data_dict[date]
+                gs1_data_dict[year_i].append(val)
+
+            gs2_data_dict = {}
+            for date in data_dict:
+                year_i = date.year
+                year_i = year_i - 1
+                if not year_i in gs2_data_dict:
+                    gs2_data_dict[year_i] = []
+                month_i = date.month
+                if not month_i in gs_part2:
+                    continue
+                val = data_dict[date]
+                gs2_data_dict[year_i].append(val)
+
+            merge_gs_dict = {}
+            for year in year_list_set:
+                if not year in gs1_data_dict:
+                    gs_val1 = []
+                else:
+                    gs_val1 = gs1_data_dict[year]
+                if not year in gs2_data_dict:
+                    gs_val2 = []
+                else:
+                    gs_val2 = gs2_data_dict[year]
+                gs_vals = gs_val1 + gs_val2
+                merge_gs_dict[year] = gs_vals
+            return merge_gs_dict
+        else:
+            raise NotImplementedError('Only support southern hemisphere now')
 
 class SMOOTH:
     '''
@@ -4336,7 +4388,7 @@ class Pre_Process:
         # for p in params:
         #     print(p[1])
         #     self.kernel_cal_anomaly(p)
-        MULTIPROCESS(self.kernel_cal_anomaly, params).run(process=4, process_or_thread='p',
+        MULTIPROCESS(self.kernel_cal_anomaly, params).run(njobs=4, process_or_thread='p',
                                                           desc='calculating anomaly...')
 
     def clean_per_pix(self, fdir, outdir, mode='linear'):
@@ -5846,7 +5898,7 @@ class Tif_loader_Mem:
             for idx in self.block_index_list:
                 params = [outdir,idx,band_name_list]
                 params_list.append(params)
-            MULTIPROCESS(self.kernel_transform_to_block,params_list).run(process=njob)
+            MULTIPROCESS(self.kernel_transform_to_block,params_list).run(njobs=njob)
         pass
 
     def kernel_transform_to_block(self,params):
@@ -5880,7 +5932,7 @@ class Tif_loader_Mem:
             for idx in self.block_index_list:
                 params = [outdir,idx]
                 params_list.append(params)
-            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(process=njob)
+            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(njobs=njob)
 
     def kernel_transform_to_spatial_dict(self,params):
         outdir, idx = params
@@ -5936,7 +5988,7 @@ class Tif_loader_Mem:
             for idx in self.block_index_list:
                 params = [idx,method,nodata]
                 params_list.append(params)
-            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob, desc=f'{method.__name__}')
+            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(njobs=njob, desc=f'{method.__name__}')
 
         results_2darray = np.concatenate(results_2darray_list,axis=0)
         profile = copy.copy(self.profile)
@@ -6042,7 +6094,7 @@ class Tif_loader_Height:
             profile = src.profile
             return profile
 
-    def transform_to_block(self,outdir,njob=8,band_name_list=None,istqdm=False):
+    def transform_to_block(self,outdir,njob=8,band_name_list=None,istqdm=False,digit=None):
         Tools().mkdir(outdir,True)
         flist = self.flist
         if band_name_list == None:
@@ -6060,7 +6112,12 @@ class Tif_loader_Height:
                 block_index_list_iter = self.block_index_list
             for idx in block_index_list_iter:
                 patch_concat,profile_new = self.array_iterator_index(idx)
-                outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.tif')
+                if digit is None:
+                    outf = join(outdir,f'{self.get_digit_str(self.iter_length,idx)}.tif')
+                else:
+                    outf = join(outdir, f'{idx:0{digit}d}.tif')
+                # print(outf)
+                # exit()
                 outf_is_ok = False
                 if isfile(outf):
                     outf_is_ok = self.check_blocls(outf,band_name_list)
@@ -6070,14 +6127,16 @@ class Tif_loader_Height:
         else:
             params_list = []
             for idx in self.block_index_list:
-                params = [outdir,idx,band_name_list]
+                params = [outdir,idx,band_name_list,digit]
                 params_list.append(params)
-            MULTIPROCESS(self.kernel_transform_to_block,params_list,istqdm=istqdm).run(process=njob)
-        pass
+            MULTIPROCESS(self.kernel_transform_to_block,params_list,istqdm=istqdm).run(njobs=njob)
 
     def kernel_transform_to_block(self,params):
-        outdir,idx,band_name_list = params
-        outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.tif')
+        outdir,idx,band_name_list,digit = params
+        if digit is None:
+            outf = join(outdir, f'{self.get_digit_str(self.iter_length, idx)}.tif')
+        else:
+            outf = join(outdir, f'{idx:0{digit}d}.tif')
         outf_is_ok = False
         if isfile(outf):
             outf_is_ok = self.check_blocls(outf, band_name_list)
@@ -6127,7 +6186,7 @@ class Tif_loader_Height:
             for idx in self.block_index_list:
                 params = [outdir,idx]
                 params_list.append(params)
-            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(process=njob)
+            MULTIPROCESS(self.kernel_transform_to_spatial_dict,params_list).run(njobs=njob)
 
     def kernel_transform_to_spatial_dict(self,params):
         outdir, idx = params
@@ -6182,7 +6241,7 @@ class Tif_loader_Height:
             for idx in self.block_index_list:
                 params = [idx,method,nodata]
                 params_list.append(params)
-            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob, desc=f'{method.__name__}')
+            results_2darray_list = MULTIPROCESS(self.kernel_reduce,params_list).run(njobs=njob, desc=f'{method.__name__}')
 
         results_2darray = np.concatenate(results_2darray_list,axis=0)
         profile = copy.copy(self.profile)
@@ -6381,8 +6440,11 @@ class RasterIO_Func:
         return ll_point,lr_point,ur_point,ul_point
 
 
-    def reproject_tif(self,fpath,outf,dst_crs,dst_crs_res=None):
+    def reproject_tif(self,fpath,outf,dst_crs=None,dst_crs_res=None,resampling_method=Resampling.nearest):
+
         with rasterio.open(fpath) as src:
+            if dst_crs is None:
+                dst_crs = src.crs
             transform, width, height = calculate_default_transform(
                 src.crs, dst_crs, src.width, src.height, *src.bounds,resolution=dst_crs_res
             )
@@ -6402,7 +6464,7 @@ class RasterIO_Func:
                         src_crs=src.crs,
                         dst_transform=transform,
                         dst_crs=dst_crs,
-                        resampling=Resampling.nearest
+                        resampling=resampling_method
                     )
 
     def build_pyramid(self,
@@ -6727,7 +6789,6 @@ class Block_Handler:
         else:
             return null_array
 
-        pass
 
     def transform_block_to_spatial_dict(self,outdir,njobs=8):
         outdir = Path(outdir)
@@ -6747,7 +6808,7 @@ class Block_Handler:
         outf_metadata = outdir / 'metadata.dict'
         outf_metadata = str(outf_metadata)
         Tools().save_dict_to_binary(metadata_dict,outf_metadata)
-        MULTIPROCESS(self.kernel_transform_block_to_spatial_dict,params_list).run(process=njobs)
+        MULTIPROCESS(self.kernel_transform_block_to_spatial_dict,params_list).run(njobs=njobs)
         pass
 
     def transform_spatial_dict_to_block(self,fdir_dict,outdir_block):
@@ -6797,7 +6858,7 @@ class Block_Handler:
             params = indx, band_list, global_profile, outdir
             params_list.append(params)
             # self.kernel_transform_block_to_tif_list(params)
-        MULTIPROCESS(self.kernel_transform_block_to_tif_list,params_list).run(process=njob)
+        MULTIPROCESS(self.kernel_transform_block_to_tif_list,params_list).run(njobs=njob)
         pass
 
     def kernel_transform_block_to_tif_list(self,params):
@@ -6831,7 +6892,7 @@ class Block_Handler:
             params_list.append(params)
         if len(params_list) < njob:
             njob = len(params_list)
-        result_arrays = MULTIPROCESS(self.kernel_reduce,params_list).run(process=njob)
+        result_arrays = MULTIPROCESS(self.kernel_reduce,params_list).run(njobs=njob)
         result_array = np.concatenate(result_arrays,axis=0)
         if outf != None:
             RasterIO_Func().write_tif(result_array,outf,global_profile)
@@ -7063,7 +7124,7 @@ class DIC_and_DF:
             for df, profile, fname in df_loader:
                 params = (df, col_name, method, profile, profile_merge)
                 params_list.append(params)
-            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(process=njob)
+            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(njobs=njob)
             result_array = np.concatenate(result_array_list, axis=0)
             RasterIO_Func().write_tif(result_array, outf, profile_merge)
 
@@ -7085,7 +7146,7 @@ class DIC_and_DF:
             for df, profile, fname in df_loader:
                 params = (df, col_name, method, profile, profile_merge)
                 params_list.append(params)
-            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(process=njob)
+            result_array_list = MULTIPROCESS(self.kernel_spatial_dataframe_dir_to_tif, params_list).run(njobs=njob)
             result_array = np.concatenate(result_array_list, axis=0)
             return result_array
 
@@ -7128,7 +7189,7 @@ class DIC_and_DF:
                 params_list.append(params)
             if len(params_list) < njob:
                 njob = len(params_list)
-            MULTIPROCESS(self.kernel_add_tif_to_df, params_list).run(process=njob)
+            MULTIPROCESS(self.kernel_add_tif_to_df, params_list).run(njobs=njob)
 
     def kernel_add_tif_to_df(self,params):
         df, data2d, val_nodata, col_name, dff_dir, fname = params

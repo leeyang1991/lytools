@@ -16,3 +16,4 @@ dnspython
 urllib3
 requests
 pathos
+xlrd
